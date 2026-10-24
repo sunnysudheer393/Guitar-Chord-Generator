@@ -73,7 +73,7 @@
           <i class="fa-solid fa-guitar text-xl"></i>
         </div>
         <div>
-          <h1 class="text-lg font-bold text-slate-100 leading-none">SunGen AI</h1>
+          <h1 class="text-lg font-bold text-slate-100 leading-none">ChordGen AI</h1>
           <p class="text-xs text-slate-400 mt-1">Sunny's Generative AI for Guitar Chords</p>
         </div>
       </div>
@@ -424,11 +424,38 @@
       setupTabSwitching();
       renderFretboard('C');
       loadSavedKey();
-      
+
       // Modal events
       document.getElementById('btn-settings').onclick = () => document.getElementById('settings-modal').classList.remove('hidden');
       document.getElementById('btn-example').onclick = loadExample;
+
+      // Add listeners for input validation
+      document.getElementById('meta-song').addEventListener('input', validateInputs);
+      document.getElementById('yt-url').addEventListener('input', validateInputs);
+      document.getElementById('audio-file').addEventListener('change', validateInputs);
+
+      validateInputs(); // Initial check
     });
+
+    function validateInputs() {
+      const songTitle = getActiveSongTitle();
+      const btn = document.getElementById('btn-generate');
+
+      // If the title is 'Untitled Track', 'YouTube Audio Track', or 'Uploaded Audio Track' without a file, it's considered empty
+      const isEmpty = (songTitle === 'Untitled Track' ||
+                      (activeTab === 'tab-yt' && !document.getElementById('yt-url').value.trim()) ||
+                      (activeTab === 'tab-audio' && !document.getElementById('audio-file').files?.length));
+
+      if (isEmpty) {
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        btn.title = "Please provide a song source (Metadata, YouTube URL, or Audio File) to generate chords.";
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        btn.title = "";
+      }
+    }
 
     // Tab Navigation & Dynamic Form Validation Guardrail
     function setupTabSwitching() {
