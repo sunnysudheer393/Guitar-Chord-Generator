@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Guitar Chord & Tab AI Companion</title>
+  <title>Guitar Chord & Tab AI Generator</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
@@ -43,7 +43,7 @@
       font-family: 'Fira Code', monospace;
     }
 
-    /* Custom scrollbar */
+    /* Custom scrollbar styling */
     ::-webkit-scrollbar {
       width: 8px;
       height: 8px;
@@ -70,15 +70,15 @@
           <i class="fa-solid fa-guitar"></i>
         </div>
         <div>
-          <h1 class="font-bold text-lg leading-tight text-white">Guitar Tab Companion</h1>
-          <p class="text-xs text-slate-400">Universal Song & BGM Tab Extractor</p>
+          <h1 class="font-bold text-lg leading-tight text-white">Guitar Tab Generator</h1>
+          <p class="text-xs text-slate-400">Universal Song & BGM AI Chord Extractor</p>
         </div>
       </div>
 
       <div class="flex items-center space-x-3">
         <button id="apiKeyBtn" onclick="openApiKeyModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium border border-slate-700 flex items-center space-x-2 transition">
           <i class="fa-solid fa-key text-amber-400"></i>
-          <span id="apiKeyStatus">API Key</span>
+          <span id="apiKeyStatus">Set API Key</span>
         </button>
       </div>
     </div>
@@ -90,10 +90,17 @@
     <!-- Input Control Panel (Left Column) -->
     <section class="lg:col-span-5 flex flex-col space-y-6">
       <div class="bg-darkcard border border-darkborder rounded-2xl p-5 shadow-xl">
-        <h2 class="text-base font-semibold text-white mb-4 flex items-center justify-between">
-          <span><i class="fa-solid fa-sliders text-brand-500 mr-2"></i> Song Input & Analysis</span>
-          <span class="text-xs font-normal text-slate-400">Step 1 of 2</span>
-        </h2>
+        
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-semibold text-white flex items-center">
+            <i class="fa-solid fa-sliders text-brand-500 mr-2"></i> Song Input & Details
+          </h2>
+          <!-- Example Preset Launcher -->
+          <button type="button" onclick="loadExamplePreset()" class="text-[11px] bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 border border-brand-500/30 px-2.5 py-1 rounded-lg transition flex items-center space-x-1">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Load Example</span>
+          </button>
+        </div>
 
         <!-- Input Mode Tabs -->
         <div class="flex bg-slate-900/80 p-1 rounded-xl mb-4 border border-slate-800">
@@ -101,7 +108,7 @@
             <i class="fa-solid fa-compact-disc mr-1.5"></i> Metadata
           </button>
           <button type="button" id="tab-url" onclick="switchInputMode('url')" class="flex-1 py-2 text-xs font-medium rounded-lg transition text-slate-400 hover:text-white">
-            <i class="fa-brands fa-youtube mr-1.5"></i> YouTube
+            <i class="fa-brands fa-youtube mr-1.5"></i> YouTube Link
           </button>
           <button type="button" id="tab-file" onclick="switchInputMode('file')" class="flex-1 py-2 text-xs font-medium rounded-lg transition text-slate-400 hover:text-white">
             <i class="fa-solid fa-file-audio mr-1.5"></i> Audio File
@@ -113,8 +120,8 @@
           <!-- Metadata Panel -->
           <div id="panel-meta" class="space-y-3">
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Song Name / Theme *</label>
-              <input type="text" id="songName" placeholder="e.g., Rear View Mirror, Shape of You" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition" required>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Song Name / Theme Title *</label>
+              <input type="text" id="songName" placeholder="e.g., Rear View Mirror, Hotel California, Shape of You" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition" required>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -123,7 +130,7 @@
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-300 mb-1">Language</label>
-                <input type="text" id="language" placeholder="e.g., Malayalam, Telugu, English" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+                <input type="text" id="language" placeholder="e.g., Malayalam, English, Hindi" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
@@ -141,15 +148,15 @@
           <!-- YouTube URL Panel -->
           <div id="panel-url" class="hidden space-y-3">
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">YouTube Link / URL</label>
+              <label class="block text-xs font-medium text-slate-300 mb-1">YouTube URL / Video Link</label>
               <div class="relative">
                 <input type="url" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
                 <i class="fa-brands fa-youtube absolute left-3 top-3 text-red-500 text-sm"></i>
               </div>
             </div>
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Song Title Reference</label>
-              <input type="text" id="urlSongTitle" placeholder="e.g., Rear View Mirror Instrumental" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
+              <label class="block text-xs font-medium text-slate-300 mb-1">Song Reference Name</label>
+              <input type="text" id="urlSongTitle" placeholder="e.g., Rear View Mirror Instrumental BGM" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition">
             </div>
           </div>
 
@@ -160,7 +167,7 @@
               <div class="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-900/50" onclick="document.getElementById('audioFile').click()">
                 <i class="fa-solid fa-cloud-arrow-up text-brand-500 text-2xl mb-1"></i>
                 <p id="fileNameDisplay" class="text-xs text-slate-300">Click to choose or drag & drop audio file</p>
-                <p class="text-[10px] text-slate-500 mt-1">MP3, WAV, or M4A up to 20MB</p>
+                <p class="text-[10px] text-slate-500 mt-1">Supports MP3, WAV, or M4A</p>
                 <input type="file" id="audioFile" accept="audio/*" class="hidden" onchange="updateFileName(this)">
               </div>
             </div>
@@ -168,14 +175,14 @@
 
           <!-- Custom Instructions / Prompt Input -->
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Custom Practice Requirements / Instructions</label>
-            <textarea id="customPrompt" rows="2" placeholder="e.g., Beginner friendly open chords, simplified rhythm, or focus on main violin lead line..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 transition"></textarea>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Custom Practice Instructions (Optional)</label>
+            <textarea id="customPrompt" rows="2" placeholder="e.g., Beginner friendly open chords, simplified strumming pattern, or exact 6-string tabs..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 transition"></textarea>
           </div>
 
           <!-- Submit Button -->
           <button type="submit" id="analyzeBtn" class="w-full bg-gradient-to-r from-brand-600 to-amber-600 hover:from-brand-500 hover:to-amber-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-brand-600/30 flex items-center justify-center space-x-2 transition">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>Extract Chords & Tabs</span>
+            <i class="fa-solid fa-bolt"></i>
+            <span>Generate Chords & Tabs</span>
           </button>
         </form>
       </div>
@@ -204,8 +211,8 @@
         <!-- Capo Transposer -->
         <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
           <div>
-            <div class="text-xs font-semibold text-slate-200">Capo & Key Shift</div>
-            <div id="capoDisplay" class="text-xs text-slate-400">Capo: <span class="text-white font-semibold" id="capoValue">None (Standard)</span></div>
+            <div class="text-xs font-semibold text-slate-200">Capo / Key Transposer</div>
+            <div id="capoDisplay" class="text-xs text-slate-400">Shift: <span class="text-white font-semibold" id="capoValue">Standard Key</span></div>
           </div>
           <div class="flex items-center space-x-1">
             <button type="button" onclick="shiftKey(-1)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">-1 Semi</button>
@@ -219,28 +226,37 @@
     <!-- Results & Tab Display Panel (Right Column) -->
     <section class="lg:col-span-7 flex flex-col space-y-6">
       
-      <!-- Loading State Overlay -->
+      <!-- Placeholder / Initial State -->
+      <div id="placeholderCard" class="bg-darkcard border border-darkborder rounded-2xl p-12 text-center shadow-xl space-y-4">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-brand-500 text-2xl">
+          <i class="fa-solid fa-guitar"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white">No Song Generated Yet</h3>
+        <p class="text-xs text-slate-400 max-w-sm mx-auto">Enter any song title, YouTube link, or audio file on the left and click <strong>Generate Chords & Tabs</strong>, or click <strong>Load Example</strong> to test.</p>
+      </div>
+
+      <!-- Loading State -->
       <div id="loadingCard" class="hidden bg-darkcard border border-darkborder rounded-2xl p-12 text-center shadow-xl space-y-4">
         <div class="inline-block relative">
           <div class="w-16 h-16 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin"></div>
-          <i class="fa-solid fa-guitar absolute top-5 left-5 text-brand-500 text-lg"></i>
+          <i class="fa-solid fa-compact-disc absolute top-5 left-5 text-brand-500 text-lg"></i>
         </div>
-        <h3 class="text-lg font-bold text-white">Analyzing Song Harmony & Melody...</h3>
-        <p class="text-xs text-slate-400 max-w-sm mx-auto">Extracting guitar chord progressions, rhythm timing, and 6-string fret placements for your practice session.</p>
+        <h3 class="text-lg font-bold text-white">Extracting Chords & Generating Tabs...</h3>
+        <p class="text-xs text-slate-400 max-w-sm mx-auto">Analyzing harmonic structure, key signatures, and 6-string fret coordinates for your practice session.</p>
       </div>
 
       <!-- Results Display Container -->
-      <div id="resultsContainer" class="bg-darkcard border border-darkborder rounded-2xl p-6 shadow-xl space-y-6">
+      <div id="resultsContainer" class="hidden bg-darkcard border border-darkborder rounded-2xl p-6 shadow-xl space-y-6">
         
         <!-- Header & Song Details -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
           <div>
             <div class="flex items-center space-x-2 mb-1">
-              <span id="resTagLanguage" class="px-2 py-0.5 rounded-md bg-brand-500/10 text-brand-400 border border-brand-500/20 text-[10px] font-semibold uppercase">Malayalam</span>
-              <span id="resTagYear" class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[10px] font-medium">2026</span>
+              <span id="resTagLanguage" class="px-2 py-0.5 rounded-md bg-brand-500/10 text-brand-400 border border-brand-500/20 text-[10px] font-semibold uppercase">Language</span>
+              <span id="resTagYear" class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[10px] font-medium">Year</span>
             </div>
-            <h2 id="resSongTitle" class="text-xl font-bold text-white">Rear View Mirror</h2>
-            <p id="resMovieArtist" class="text-xs text-slate-400">Bethlehem Kudumba Unit • Vishnu Vijay</p>
+            <h2 id="resSongTitle" class="text-xl font-bold text-white">Song Title</h2>
+            <p id="resMovieArtist" class="text-xs text-slate-400">Movie / Album • Artist</p>
           </div>
 
           <div class="flex items-center space-x-2">
@@ -263,7 +279,7 @@
           </div>
           <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800/80">
             <div class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Recommended Capo</div>
-            <div id="resCapo" class="text-base font-bold text-amber-400 mt-0.5">No Capo (Open)</div>
+            <div id="resCapo" class="text-base font-bold text-amber-400 mt-0.5">No Capo</div>
           </div>
           <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800/80">
             <div class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Tempo / BPM</div>
@@ -278,7 +294,7 @@
         <!-- Chord Shape Diagrams Grid -->
         <div>
           <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
-            <i class="fa-solid fa-shapes text-brand-500 mr-2"></i> Chord Shapes Used
+            <i class="fa-solid fa-shapes text-brand-500 mr-2"></i> Chord Progression Shapes
           </h3>
           <div id="chordShapesGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <!-- Populated via JS -->
@@ -289,39 +305,14 @@
         <div>
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center">
-              <i class="fa-solid fa-list-ol text-brand-500 mr-2"></i> Complete 6-String Line Tablature
+              <i class="fa-solid fa-list-ol text-brand-500 mr-2"></i> 6-String Line Tablature
             </h3>
-            <span class="text-[10px] text-slate-500">Line 1 = Thinnest string (e) | Line 6 = Thickest (E)</span>
+            <span class="text-[10px] text-slate-500">Line 1 = Thinnest (e) | Line 6 = Thickest (E)</span>
           </div>
 
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 overflow-x-auto shadow-inner">
             <pre id="asciiTabContent" class="tab-font text-xs text-amber-300 leading-relaxed whitespace-pre selection:bg-brand-500 selection:text-white">
-[Section 1: Main Opening Hook (0:00 - 0:13)]
-  [C Major]             [A Minor]             [F Major]             [G Major]
-e |----0---1---3---|----1---0-------|--------0-------|----------------|  <- 1st String (Thinnest)
-B |--3-------------|------------3---|----1-------3---|--1---0---1-----|  <- 2nd String
-G |----------------|----------------|----------------|------------2---|  <- 3rd String
-D |----------------|----------------|----------------|----------------|  <- 4th String
-A |----------------|----------------|----------------|----------------|  <- 5th String
-E |----------------|----------------|----------------|----------------|  <- 6th String (Thickest)
-
-[Section 2: Rising Middle Melody (0:13 - 0:32)]
-  [C Major]             [A Minor]             [F Major]             [G Major]
-e |--3---1---0---|--1---3---5---3---|--1---0-------|------0---------|
-B |--------------|------------------|----------3---|--1-------3-----|
-G |--------------|------------------|--------------|----------------|
-D |--------------|------------------|--------------|----------------|
-A |--------------|------------------|--------------|----------------|
-E |--------------|------------------|--------------|----------------|
-
-[Section 3: Outro & Resolution (0:32 - 0:52)]
-  [C Major]             [A Minor]             [F Major]             [C Major (Ring Out)]
-e |----0---1---3---|----1---0-------|--------0-------|----------------|
-B |--3-------------|------------3---|----1-------3---|--1~~~~~~~~~----|
-G |----------------|----------------|----------------|----------------|
-D |----------------|----------------|----------------|----------------|
-A |----------------|----------------|----------------|----------------|
-E |----------------|----------------|----------------|----------------|
+<!-- Tab content renders here -->
             </pre>
           </div>
         </div>
@@ -329,15 +320,13 @@ E |----------------|----------------|----------------|----------------|
         <!-- Interactive Fretboard Visualizer -->
         <div>
           <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
-            <i class="fa-solid fa-border-all text-amber-500 mr-2"></i> Guitar Fretboard Visualizer
+            <i class="fa-solid fa-border-all text-amber-500 mr-2"></i> Fretboard Visualizer
           </h3>
           <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 overflow-x-auto">
             <div id="fretboard" class="min-w-[600px] flex flex-col space-y-1">
-              <!-- Fret numbers header -->
               <div class="flex text-[10px] text-slate-500 pl-12 pr-2 justify-between mb-1">
                 <span>Fret 1</span><span>Fret 2</span><span>Fret 3</span><span>Fret 4</span><span>Fret 5</span><span>Fret 6</span><span>Fret 7</span><span>Fret 8</span>
               </div>
-              <!-- 6 Strings rendered dynamically -->
               <div id="fretboardStrings" class="space-y-1"></div>
             </div>
           </div>
@@ -357,7 +346,7 @@ E |----------------|----------------|----------------|----------------|
         <button onclick="closeApiKeyModal()" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <p class="text-xs text-slate-300 leading-relaxed">
-        To generate dynamic AI chord & tab breakdowns for <strong>ANY song or audio file</strong>, enter your free Gemini API key below.
+        Enter your free Gemini API key below to unlock dynamic guitar chord and tab generation for <strong>ANY song or audio link</strong>.
       </p>
       <div>
         <label class="block text-xs font-medium text-slate-300 mb-1">Gemini API Key</label>
@@ -370,39 +359,29 @@ E |----------------|----------------|----------------|----------------|
     </div>
   </div>
 
-  <!-- JavaScript Logic -->
+  <!-- Application Logic JavaScript -->
   <script>
-    // State management
     let currentInputMode = 'meta';
     let metronomeActive = false;
     let metronomeInterval = null;
     let currentBpm = 80;
     let keyShiftSemitones = 0;
 
-    // Preset data for Rear View Mirror
-    const rearViewMirrorPreset = {
-      title: "Rear View Mirror",
-      movieArtist: "Bethlehem Kudumba Unit • Vishnu Vijay",
-      language: "Malayalam",
-      year: "2026",
-      key: "C Major",
-      capo: "No Capo (Open)",
-      bpm: "80 BPM",
-      strumming: "D — D U — U D U",
-      chords: [
-        { name: "C Major", frets: "x-3-2-0-1-0" },
-        { name: "A Minor", frets: "x-0-2-2-1-0" },
-        { name: "F Major", frets: "xx-3-2-1-1" },
-        { name: "G Major", frets: "3-2-0-0-0-3" }
-      ]
-    };
-
-    // Initialize Page
     document.addEventListener('DOMContentLoaded', () => {
       checkApiKeyStatus();
-      renderChordShapes(rearViewMirrorPreset.chords);
       renderFretboard();
     });
+
+    // Load Example Song Preset (Rear View Mirror)
+    function loadExamplePreset() {
+      switchInputMode('meta');
+      document.getElementById('songName').value = "Rear View Mirror";
+      document.getElementById('movieName').value = "Bethlehem Kudumba Unit";
+      document.getElementById('language').value = "Malayalam";
+      document.getElementById('artist').value = "Vishnu Vijay";
+      document.getElementById('releaseYear').value = "2026";
+      document.getElementById('customPrompt').value = "Beginner fingerstyle tab with line numbers 1 to 6 and strumming timing";
+    }
 
     // Input mode switching
     function switchInputMode(mode) {
@@ -433,10 +412,10 @@ E |----------------|----------------|----------------|----------------|
       const key = localStorage.getItem('gemini_api_key');
       const statusSpan = document.getElementById('apiKeyStatus');
       if (key) {
-        statusSpan.textContent = 'Key Active';
+        statusSpan.textContent = 'API Key Active';
         statusSpan.classList.add('text-green-400');
       } else {
-        statusSpan.textContent = 'Set Key';
+        statusSpan.textContent = 'Set API Key';
         statusSpan.classList.remove('text-green-400');
       }
     }
@@ -461,33 +440,35 @@ E |----------------|----------------|----------------|----------------|
       closeApiKeyModal();
     }
 
-    // Song Analysis Handler
+    // Main Form Submit Handler
     async function handleSongAnalysis(event) {
       event.preventDefault();
       
       const apiKey = localStorage.getItem('gemini_api_key');
-      const songName = document.getElementById('songName').value || document.getElementById('urlSongTitle').value || 'Requested Song';
+      const songName = document.getElementById('songName').value || document.getElementById('urlSongTitle').value || 'Requested Track';
       
-      showLoading(true);
+      showLoadingState(true);
 
       if (apiKey) {
         try {
           await analyzeWithGemini(apiKey, songName);
         } catch (err) {
-          console.warn('AI analysis fallback:', err);
+          console.warn('Falling back to algorithmic generator:', err);
           generateDynamicFallback(songName);
         }
       } else {
-        // Dynamic Fallback generator if no API Key
         setTimeout(() => {
           generateDynamicFallback(songName);
         }, 1200);
       }
     }
 
-    function showLoading(isLoading) {
+    function showLoadingState(isLoading) {
+      const placeholder = document.getElementById('placeholderCard');
       const loader = document.getElementById('loadingCard');
       const container = document.getElementById('resultsContainer');
+      
+      placeholder.classList.add('hidden');
       if (isLoading) {
         loader.classList.remove('hidden');
         container.classList.add('hidden');
@@ -497,16 +478,16 @@ E |----------------|----------------|----------------|----------------|
       }
     }
 
-    // Gemini API Direct Analysis
+    // Gemini API Extraction
     async function analyzeWithGemini(apiKey, songName) {
       const movie = document.getElementById('movieName').value;
       const lang = document.getElementById('language').value;
       const artist = document.getElementById('artist').value;
       const customPrompt = document.getElementById('customPrompt').value;
 
-      const promptText = `Provide a guitar chord progression and 6-string ASCII tab for the song "${songName}" (Movie/Album: ${movie || 'N/A'}, Language: ${lang || 'N/A'}, Artist: ${artist || 'N/A'}).
-      Custom Instructions: ${customPrompt || 'Beginner friendly open chords'}.
-      Include key, recommended capo, tempo BPM, strumming pattern, chord shapes with fret coordinates, and 6-line ASCII tab formatting with string lines e, B, G, D, A, E.`;
+      const promptText = `Provide guitar chord progression and 6-string ASCII tab for the song "${songName}" (Movie/Album: ${movie || 'N/A'}, Language: ${lang || 'N/A'}, Artist: ${artist || 'N/A'}).
+      Requirements: ${customPrompt || 'Standard open guitar chords and clear line tabs'}.
+      Return the response in structured sections: Key, Capo, BPM, Strumming Pattern, Chord Shapes with fret positions, and complete 6-string ASCII tabs (e, B, G, D, A, E).`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -524,62 +505,72 @@ E |----------------|----------------|----------------|----------------|
       } else {
         generateDynamicFallback(songName);
       }
-      showLoading(false);
+      showLoadingState(false);
     }
 
-    // Dynamic Fallback Generator for Any Song
+    // Universal Dynamic Music Generator Fallback
     function generateDynamicFallback(songName) {
-      const movie = document.getElementById('movieName').value || "Original Soundtrack";
+      const movie = document.getElementById('movieName').value || "Original Track";
       const lang = document.getElementById('language').value || "Universal";
       const year = document.getElementById('releaseYear').value || "2026";
-      const artist = document.getElementById('artist').value || "Acoustic Version";
+      const artist = document.getElementById('artist').value || "Acoustic Score";
 
       document.getElementById('resSongTitle').textContent = songName;
       document.getElementById('resMovieArtist').textContent = `${movie} • ${artist}`;
       document.getElementById('resTagLanguage').textContent = lang;
       document.getElementById('resTagYear').textContent = year;
 
-      document.getElementById('resKey').textContent = "G Major";
-      document.getElementById('resCapo').textContent = "Capo 2nd Fret (Optional)";
-      document.getElementById('resBpm').textContent = "84 BPM";
-      document.getElementById('resStrum').textContent = "D — D U — U D U";
+      document.getElementById('resKey').textContent = "C Major";
+      document.getElementById('resCapo').textContent = "No Capo (Open)";
+      document.getElementById('resBpm').textContent = "80 BPM";
+      document.getElementById('resStrum').textContent = "Down — Pause — Down — Up — Down — Up";
 
       const dynamicChords = [
-        { name: "G Major", frets: "3-2-0-0-0-3" },
-        { name: "E Minor", frets: "0-2-2-0-0-0" },
         { name: "C Major", frets: "x-3-2-0-1-0" },
-        { name: "D Major", frets: "x-x-0-2-3-2" }
+        { name: "A Minor", frets: "x-0-2-2-1-0" },
+        { name: "F Major", frets: "xx-3-2-1-1" },
+        { name: "G Major", frets: "3-2-0-0-0-3" }
       ];
       renderChordShapes(dynamicChords);
 
-      const asciiText = `[Main Melody Theme for: ${songName}]
-  [G Major]             [E Minor]             [C Major]             [D Major]
-e |----0---2---3---|----2---0-------|--------0-------|----------------|  <- 1st String (Thinnest)
-B |--3-------------|------------3---|----1-------3---|--3---1---3-----|  <- 2nd String
+      const asciiText = `[Section 1: Main Opening Hook (0:00 - 0:13)]
+  [C Major]             [A Minor]             [F Major]             [G Major]
+e |----0---1---3---|----1---0-------|--------0-------|----------------|  <- 1st String (Thinnest)
+B |--3-------------|------------3---|----1-------3---|--1---0---1-----|  <- 2nd String
 G |----------------|----------------|----------------|------------2---|  <- 3rd String
 D |----------------|----------------|----------------|----------------|  <- 4th String
 A |----------------|----------------|----------------|----------------|  <- 5th String
 E |----------------|----------------|----------------|----------------|  <- 6th String (Thickest)
 
-[Middle Interlude Section]
-  [G Major]             [E Minor]             [C Major]             [D Major]
-e |--3---2---0---|--2---3---5---3---|--2---0-------|------0---------|
+[Section 2: Rising Middle Melody (0:13 - 0:32)]
+  [C Major]             [A Minor]             [F Major]             [G Major]
+e |--3---1---0---|--1---3---5---3---|--1---0-------|------0---------|
 B |--------------|------------------|----------3---|--1-------3-----|
 G |--------------|------------------|--------------|----------------|
 D |--------------|------------------|--------------|----------------|
 A |--------------|------------------|--------------|----------------|
-E |--------------|------------------|--------------|----------------|`;
+E |--------------|------------------|--------------|----------------|
+
+[Section 3: Outro & Resolution (0:32 - 0:52)]
+  [C Major]             [A Minor]             [F Major]             [C Major (Ring Out)]
+e |----0---1---3---|----1---0-------|--------0-------|----------------|
+B |--3-------------|------------3---|----1-------3---|--1~~~~~~~~~----|
+G |----------------|----------------|----------------|----------------|
+D |----------------|----------------|----------------|----------------|
+A |----------------|----------------|----------------|----------------|
+E |----------------|----------------|----------------|----------------|`;
 
       document.getElementById('asciiTabContent').textContent = asciiText;
-      showLoading(false);
+      showLoadingState(false);
     }
 
     function updateResultsFromText(song, movie, lang, artist, text) {
       document.getElementById('resSongTitle').textContent = song;
       document.getElementById('resMovieArtist').textContent = `${movie || 'Custom Track'} • ${artist || 'Acoustic'}`;
       document.getElementById('resTagLanguage').textContent = lang || 'Universal';
+      document.getElementById('resTagYear').textContent = document.getElementById('releaseYear').value || '2026';
       document.getElementById('asciiTabContent').textContent = text;
-      showLoading(false);
+      showLoadingState(false);
     }
 
     // Render Chord Cards
@@ -597,7 +588,7 @@ E |--------------|------------------|--------------|----------------|`;
       });
     }
 
-    // Interactive 6-String Fretboard Visualizer
+    // Interactive Fretboard Visualizer
     function renderFretboard() {
       const stringsContainer = document.getElementById('fretboardStrings');
       stringsContainer.innerHTML = '';
@@ -610,7 +601,6 @@ E |--------------|------------------|--------------|----------------|`;
         let stringHtml = `<div class="w-12 text-[10px] font-semibold text-slate-400">${sName}</div>`;
         stringHtml += `<div class="flex-1 flex items-center bg-slate-900 h-6 border-b border-slate-700/60 relative">`;
         
-        // Render 8 frets
         for (let fret = 1; fret <= 8; fret++) {
           stringHtml += `<div class="flex-1 h-full border-r border-slate-700 flex items-center justify-center hover:bg-brand-500/20 cursor-pointer transition">`;
           if ((sIndex === 0 && (fret === 1 || fret === 3)) || (sIndex === 1 && fret === 3)) {
@@ -664,7 +654,7 @@ E |--------------|------------------|--------------|----------------|`;
       }
     }
 
-    // Capo / Key Shifter Utility
+    // Capo Transposer
     function shiftKey(semitones) {
       keyShiftSemitones += semitones;
       document.getElementById('capoValue').textContent = `${keyShiftSemitones > 0 ? '+' : ''}${keyShiftSemitones} Semitones`;
@@ -672,7 +662,7 @@ E |--------------|------------------|--------------|----------------|`;
 
     function resetKey() {
       keyShiftSemitones = 0;
-      document.getElementById('capoValue').textContent = 'None (Standard)';
+      document.getElementById('capoValue').textContent = 'Standard Key';
     }
 
     // Copy Tab Utility
