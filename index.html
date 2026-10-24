@@ -441,12 +441,26 @@
       const songTitle = getActiveSongTitle();
       const btn = document.getElementById('btn-generate');
 
-      // If the title is 'Untitled Track', 'YouTube Audio Track', or 'Uploaded Audio Track' without a file, it's considered empty
-      const isEmpty = (songTitle === 'Untitled Track' ||
-                      (activeTab === 'tab-yt' && !document.getElementById('yt-url').value.trim()) ||
-                      (activeTab === 'tab-audio' && !document.getElementById('audio-file').files?.length));
+      let isSourceEmpty = true;
 
-      if (isEmpty) {
+      if (activeTab === 'tab-meta') {
+        // Metadata tab: enabled if song title is provided
+        if (songTitle !== 'Untitled Track') {
+          isSourceEmpty = false;
+        }
+      } else if (activeTab === 'tab-yt') {
+        // YouTube tab: enabled only if URL is provided
+        if (document.getElementById('yt-url').value.trim()) {
+          isSourceEmpty = false;
+        }
+      } else if (activeTab === 'tab-audio') {
+        // Audio tab: enabled only if a file is uploaded
+        if (document.getElementById('audio-file').files?.length > 0) {
+          isSourceEmpty = false;
+        }
+      }
+
+      if (isSourceEmpty) {
         btn.disabled = true;
         btn.classList.add('opacity-50', 'cursor-not-allowed');
         btn.title = "Please provide a song source (Metadata, YouTube URL, or Audio File) to generate chords.";
