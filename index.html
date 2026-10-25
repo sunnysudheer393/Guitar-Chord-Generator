@@ -273,14 +273,20 @@
         <div id="output-content" class="hidden flex-1 flex flex-col space-y-6 print-box">
           
           <!-- Track Header -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-4 gap-4">
-            <div>
-              <div class="flex items-center gap-2">
-                <span id="res-badge" class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-brand-500/20 text-brand-500 border border-brand-500/30">Standard Tuning</span>
-                <span id="res-key" class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300">Key: C Major</span>
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between border-b border-slate-800 pb-4 gap-4">
+            <div class="flex gap-4 items-start">
+              <!-- Album / Song Artwork -->
+              <div id="res-artwork-wrap" class="hidden w-20 h-20 rounded-xl overflow-hidden border border-slate-700/60 flex-shrink-0 shadow-lg">
+                <img id="res-artwork" src="" alt="Album Art" class="w-full h-full object-cover">
               </div>
-              <h2 id="res-title" class="text-xl font-bold text-slate-100 mt-1">Song Title</h2>
-              <p id="res-artist" class="text-xs text-slate-400">Artist / Film Details</p>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span id="res-badge" class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-brand-500/20 text-brand-500 border border-brand-500/30">Standard Tuning</span>
+                  <span id="res-key" class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300">Key: C Major</span>
+                </div>
+                <h2 id="res-title" class="text-xl font-bold text-slate-100 mt-1">Song Title</h2>
+                <p id="res-artist" class="text-xs text-slate-400">Artist / Film Details</p>
+              </div>
             </div>
             <!-- Actions -->
             <div class="flex items-center gap-2 no-print">
@@ -777,15 +783,19 @@
         sections: [
           {
             name: "Intro",
-            tab: `e|---${seed % 4}---${(seed+1) % 4}---${seed % 4}---${(seed+1) % 4}---| \nB|---${(seed+2) % 4}---${(seed+3) % 4}---${(seed+2) % 4}---${(seed+3) % 4}---| \nG|---${seed % 4}---${(seed+1) % 4}---${seed % 4}---${(seed+1) % 4}---| \nD|---${(seed+2) % 4}---${(seed+3) % 4}---${(seed+2) % 4}---${(seed+3) % 4}---| \nA|---${seed % 4}---${(seed+1) % 4}---${seed % 4}---${(seed+1) % 4}---| \nE|-------------------|`
+            tab: buildTabFromChords([beginnerChords[0]], 'arpeggio')
           },
           {
             name: "Verse",
-            tab: `e|-------------------| \nB|---${(seed+2) % 4}---${(seed+3) % 4}---${(seed+2) % 4}---${(seed+3) % 4}---| \nG|---${seed % 4}---${(seed+1) % 4}---${seed % 4}---${(seed+1) % 4}---| \nD|---${(seed+2) % 4}---${(seed+3) % 4}---${(seed+2) % 4}---${(seed+3) % 4}---| \nA|---${seed % 4}---${(seed+1) % 4}---${seed % 4}---${(seed+1) % 4}---| \nE|-------------------|`
+            tab: buildTabFromChords([beginnerChords[0], beginnerChords[1]], 'strum')
           },
           {
             name: "Chorus",
-            tab: `e|---${seed % 4}-${(seed+1) % 4}-${seed % 4}---${(seed+2) % 4}-${(seed+3) % 4}-${seed % 4}---| \nB|---${(seed+2) % 4}-${(seed+3) % 4}-${(seed+2) % 4}---${seed % 4}-${(seed+1) % 4}-${seed % 4}---| \nG|---${seed % 4}-${(seed+1) % 4}-${seed % 4}---${(seed+2) % 4}-${(seed+3) % 4}-${seed % 4}---| \nD|---${(seed+2) % 4}-${(seed+3) % 4}-${(seed+2) % 4}---${seed % 4}-${(seed+1) % 4}-${seed % 4}---| \nA|---${seed % 4}-${(seed+1) % 4}-${seed % 4}---${(seed+2) % 4}-${(seed+3) % 4}-${seed % 4}---| \nE|-------------------|`
+            tab: buildTabFromChords([beginnerChords[2], beginnerChords[3] || beginnerChords[0]], 'strum')
+          },
+          {
+            name: "Outro",
+            tab: buildTabFromChords([beginnerChords[3] || beginnerChords[0], beginnerChords[0]], 'arpeggio')
           }
         ]
       };
@@ -830,25 +840,112 @@
         begContainer.appendChild(btn);
       });
 
-      // Render ASCII Tabs
+      // Render ASCII Tabs — use DOM construction + textContent to safely preserve all tab characters
       const tabsContainer = document.getElementById('ascii-tabs-container');
       tabsContainer.innerHTML = '';
       data.sections.forEach(sec => {
         const secBox = document.createElement('div');
         secBox.className = 'bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2';
-        secBox.innerHTML = `
-          <div class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-            <span>${sec.name}</span>
-            <span class="text-[10px] text-slate-500 font-mono">Standard Tuning (E A D G B e)</span>
-          </div>
-          <pre class="text-brand-500 text-xs overflow-x-auto leading-tight bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 select-all">${sec.tab}</pre>
-        `;
+
+        // Section header
+        const hdr = document.createElement('div');
+        hdr.className = 'text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between';
+        hdr.innerHTML = `<span>${sec.name}</span><span class="text-[10px] text-slate-500 font-mono">Standard Tuning (E A D G B e)</span>`;
+
+        // Pre block — use textContent so pipe chars, dashes, and special chars are NEVER interpreted as HTML
+        const pre = document.createElement('pre');
+        pre.className = 'text-brand-500 text-xs overflow-x-auto leading-tight bg-slate-900/50 p-3 rounded-lg border border-slate-800/50 select-all';
+        pre.textContent = sec.tab;  // Safe: preserves |, -, \n, #, & etc. exactly as-is
+
+        secBox.appendChild(hdr);
+        secBox.appendChild(pre);
         tabsContainer.appendChild(secBox);
       });
 
       // Select first chord for fretboard
       if (data.composerChords.length > 0) {
         renderFretboard(data.composerChords[0]);
+      }
+
+      // Fetch and show album artwork asynchronously (non-blocking)
+      const ytUrlForArt = activeTab === 'tab-yt' ? (document.getElementById('yt-url').value.trim()) : '';
+      fetchAlbumArt(data.title, data.artist || '', ytUrlForArt);
+    }
+
+    // ─── Album Artwork Fetcher ───────────────────────────────────────────────────
+    async function fetchAlbumArt(title, artist, ytUrl) {
+      const wrap = document.getElementById('res-artwork-wrap');
+      const img  = document.getElementById('res-artwork');
+      wrap.classList.add('hidden'); // reset first
+
+      // 1. YouTube thumbnail (instant, no CORS issues)
+      if (ytUrl) {
+        const vidMatch = ytUrl.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+        if (vidMatch) {
+          img.src = `https://img.youtube.com/vi/${vidMatch[1]}/maxresdefault.jpg`;
+          img.onerror = () => { img.src = `https://img.youtube.com/vi/${vidMatch[1]}/hqdefault.jpg`; img.onerror = null; };
+          wrap.classList.remove('hidden');
+          return;
+        }
+      }
+
+      // 2. iTunes Search API — free, no key, CORS-enabled
+      try {
+        const q = encodeURIComponent([title, artist].filter(Boolean).join(' '));
+        const res = await fetch(`https://itunes.apple.com/search?term=${q}&media=music&limit=5&entity=song`);
+        const json = await res.json();
+        if (json.results && json.results.length > 0) {
+          // Prefer highest-res artwork (600×600)
+          const rawUrl = json.results[0].artworkUrl100;
+          img.src = rawUrl.replace('100x100bb', '600x600bb');
+          img.onerror = () => wrap.classList.add('hidden');
+          wrap.classList.remove('hidden');
+        }
+      } catch (_) { /* Silently ignore — artwork is a nice-to-have */ }
+    }
+
+    // ─── Chord-Diagram Tab Builder ────────────────────────────────────────────────
+    // Converts an array of chord names into a proper 6-string ASCII tablature string.
+    // CHORD_DIAGRAMS order:  [E_low, A, D, G, B, e_high] (index 0 = thickest string)
+    // Tab display order:     e B G D A E  (top-to-bottom: high e at top)
+    function buildTabFromChords(chordNames, style) {
+      const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E']; // tab rows, high→low
+
+      // Resolve diagram for each chord (display-order: [e,B,G,D,A,E])
+      const diagrams = chordNames.map(name => {
+        const raw = CHORD_DIAGRAMS[name] || calculateChordVoicing(name) || ['x', 0, 2, 2, 1, 0];
+        // raw = [E,A,D,G,B,e] → reverse to get [e,B,G,D,A,E]
+        return [raw[5], raw[4], raw[3], raw[2], raw[1], raw[0]];
+      });
+
+      function fStr(fret) { return fret === 'x' ? 'x' : String(fret); }
+
+      if (style === 'arpeggio') {
+        // Each chord arpeggiated from low E to high e, then repeated
+        return STRING_NAMES.map((strName, si) => {
+          let line = `${strName}|`;
+          diagrams.forEach(diag => {
+            const f = fStr(diag[si]);
+            // Stagger note timing by string position (si 0=e is last to ring)
+            const pre  = '--'.repeat(5 - si);
+            const post = '--'.repeat(si + 1);
+            line += `${pre}${f}${post}`;
+          });
+          line += '|';
+          return line;
+        }).join('\n');
+      } else {
+        // Strum: all strings sound together in rhythmic groups
+        return STRING_NAMES.map((strName, si) => {
+          let line = `${strName}|`;
+          diagrams.forEach(diag => {
+            const f = fStr(diag[si]);
+            // Two strums per chord block
+            line += `-${f}---${f}--`;
+          });
+          line += '|';
+          return line;
+        }).join('\n');
       }
     }
 
