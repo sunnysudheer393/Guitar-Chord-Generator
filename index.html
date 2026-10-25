@@ -440,22 +440,29 @@
     function validateInputs() {
       const songTitle = getActiveSongTitle();
       const btn = document.getElementById('btn-generate');
+      console.log('Validating inputs. Active Tab:', activeTab, 'Song Title:', songTitle);
 
       let isSourceEmpty = true;
 
       if (activeTab === 'tab-meta') {
-        if (songTitle !== 'Untitled Track') {
+        if (songTitle && songTitle !== 'Untitled Track') {
           isSourceEmpty = false;
         }
       } else if (activeTab === 'tab-yt') {
-        if (document.getElementById('yt-url').value.trim()) {
+        const ytUrl = document.getElementById('yt-url').value.trim();
+        console.log('YouTube URL:', ytUrl);
+        if (ytUrl) {
           isSourceEmpty = false;
         }
       } else if (activeTab === 'tab-audio') {
-        if (document.getElementById('audio-file').files && document.getElementById('audio-file').files.length > 0) {
+        const audioFile = document.getElementById('audio-file').files;
+        console.log('Audio Files:', audioFile ? audioFile.length : 0);
+        if (audioFile && audioFile.length > 0) {
           isSourceEmpty = false;
         }
       }
+
+      console.log('Is Source Empty:', isSourceEmpty);
 
       if (isSourceEmpty) {
         btn.disabled = true;
