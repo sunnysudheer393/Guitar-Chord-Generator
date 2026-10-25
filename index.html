@@ -444,7 +444,11 @@
     function validateInputs() {
       const songTitle = getActiveSongTitle();
       const btn = document.getElementById('btn-generate');
-      console.log('Validating inputs. Active Tab:', activeTab, 'Song Title:', songTitle);
+
+      // LOGGING FOR DEBUGGING
+      console.log('--- Validation Start ---');
+      console.log('Active Tab:', activeTab);
+      console.log('Song Title (Computed):', songTitle);
 
       let isSourceEmpty = true;
 
@@ -453,20 +457,23 @@
           isSourceEmpty = false;
         }
       } else if (activeTab === 'tab-yt') {
-        const ytUrl = document.getElementById('yt-url').value.trim();
+        const ytUrlElement = document.getElementById('yt-url');
+        const ytUrl = ytUrlElement ? ytUrlElement.value.trim() : '';
         console.log('YouTube URL:', ytUrl);
         if (ytUrl) {
           isSourceEmpty = false;
         }
       } else if (activeTab === 'tab-audio') {
-        const audioFile = document.getElementById('audio-file').files;
-        console.log('Audio Files:', audioFile ? audioFile.length : 0);
-        if (audioFile && audioFile.length > 0) {
+        const audioFileElement = document.getElementById('audio-file');
+        const audioFiles = audioFileElement ? audioFileElement.files : null;
+        console.log('Audio Files Count:', audioFiles ? audioFiles.length : 0);
+        if (audioFiles && audioFiles.length > 0) {
           isSourceEmpty = false;
         }
       }
 
       console.log('Is Source Empty:', isSourceEmpty);
+      console.log('--- Validation End ---');
 
       if (isSourceEmpty) {
         btn.disabled = true;
