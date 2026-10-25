@@ -653,7 +653,18 @@
       });
 
       const json = await res.json();
+
+      // Debugging response
+      console.log('Gemini Response JSON:', json);
+
+      if (json.error) {
+        throw new Error(`Gemini API Error: ${json.error.message}`);
+      }
+
       const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) {
+        throw new Error("No content returned from Gemini API");
+      }
 
       // Clean potential code fences
       const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
