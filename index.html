@@ -830,7 +830,11 @@
          - Standard 6-string guitar tuning: e, B, G, D, A, E (high to low).
          - EVERY line of tablature MUST have the EXACT same character count from start to finish!
          - Format: starts with "string|--" and ends with "|".
-         - Columns must align strictly: when a slide (e.g. 3/5) or multi-digit fret is used on one string, pad other strings with matching dashes so lines NEVER misalign.
+         - Columns must align strictly: when a slide (e.g. 1/3) or multi-digit fret is used on one string, pad other strings with matching dashes so lines NEVER misalign.
+      4. 4-FINGER LEFT HAND REACH CONSTRAINT:
+         - All tab notes MUST strictly use frets 0, 1, 2, 3, or 4 (open/first position).
+         - The guitarist uses only the 4 fingers of the left hand (Open string=0, Index=1, Middle=2, Ring=3, Pinky=4).
+         - NEVER use frets 5 or higher! Slides must also stay within frets 0–4 (e.g. 1/3, 2/4, 0h2).
 
       Return ONLY a valid JSON object matching this schema:
       {
@@ -845,7 +849,7 @@
         "sections": [
           {
             "name": "Intro Lead & Hook",
-            "tab": "e|--0--3--3/5--3--0--------------0-----------|\\nB|-------------------3--1--1--3-----3--------|\\nG|-------------------------------------------|\\nD|-------------------------------------------|\\nA|-------------------------------------------|\\nE|-------------------------------------------|"
+            "tab": "e|--0--1--1/3--3--0--------------0-----------|\\nB|-------------------3--1--1--3-----3--------|\\nG|-------------------------------------------|\\nD|-------------------------------------------|\\nA|-------------------------------------------|\\nE|-------------------------------------------|"
           },
           {
             "name": "Verse Acoustic Picking",
@@ -919,7 +923,7 @@
       }
     }
 
-    // Normalizer and alignment guardrail for any tab
+    // Normalizer and alignment guardrail for any tab with 4-finger hand reach clamp (frets 0-4)
     function normalizeAndAlignAsciiTab(tabString) {
       if (!tabString || typeof tabString !== 'string') return tabString;
       const blocks = tabString.split(/\n\s*\n/);
@@ -942,6 +946,8 @@
             if (!matched.some(item => item.name === s)) {
               let content = m[2];
               if (content.endsWith('|')) content = content.slice(0, -1);
+              // Clamp all numbers to frets 0-4 based on 4-finger left hand reach
+              content = clampFretReach(content);
               matched.push({ name: s, content });
             }
           }
@@ -962,22 +968,50 @@
       return alignedBlocks.join('\n\n');
     }
 
+    // Ensures any fret number in tablature is strictly within 0, 1, 2, 3, 4 (4-finger reach)
+    function clampFretReach(lineStr) {
+      return lineStr.replace(/(\d+)\/(\d+)/g, (match, a, b) => {
+        let nA = parseInt(a, 10), nB = parseInt(b, 10);
+        if (nA <= 4 && nB <= 4) return match;
+        if (nB >= 5 && nA <= 3) return '1/3';
+        return '2/4';
+      }).replace(/(\d+)h(\d+)/g, (match, a, b) => {
+        let nA = parseInt(a, 10), nB = parseInt(b, 10);
+        if (nA <= 4 && nB <= 4) return match;
+        return '0h2';
+      }).replace(/(\d+)p(\d+)/g, (match, a, b) => {
+        let nA = parseInt(a, 10), nB = parseInt(b, 10);
+        if (nA <= 4 && nB <= 4) return match;
+        return '2p0';
+      }).replace(/\d+/g, (match) => {
+        let n = parseInt(match, 10);
+        if (n <= 4) return match;
+        if (n === 5) return '3';
+        if (n === 6) return '4';
+        if (n === 7) return '2';
+        if (n === 8) return '3';
+        if (n >= 9 && n <= 11) return '4';
+        if (n >= 12) return '0';
+        return String(n % 5);
+      });
+    }
+
     // Dynamic Theory & Tab Generation Engine
     function generateFallbackTab(title, knownArtist, knownAlbum) {
       const isExample = title.toLowerCase().includes('rear view mirror') || title.toLowerCase().includes('bethlehem');
 
       if (isExample) {
-        // High-fidelity tab for Rear View Mirror
+        // High-fidelity tab for Rear View Mirror — all notes within 4-finger reach (frets 0 to 4)
         const m1 = new TabMatrix();
         [
-          { e: '0' }, { e: '3' }, { e: '3/5' }, { e: '3' }, { e: '0' },
+          { e: '0' }, { e: '1' }, { e: '1/3' }, { e: '3' }, { e: '0' },
           { B: '3' }, { B: '1' }, { B: '1' }, { B: '3' },
           { e: '0' }, { B: '3' }, {}, {}
         ].forEach(n => m1.addBeat(n));
 
         const m2 = new TabMatrix();
         [
-          { e: '0' }, { e: '3' }, { e: '3/5' }, { e: '3' }, { e: '0' },
+          { e: '0' }, { e: '1' }, { e: '1/3' }, { e: '3' }, { e: '0' },
           { B: '3' }, { B: '1' }, { B: '1' }, { B: '3' },
           { e: '0' }, { B: '3' }, { e: '0' }, { B: '3' }, { B: '1' }
         ].forEach(n => m2.addBeat(n));
@@ -985,13 +1019,13 @@
         const m3 = new TabMatrix();
         [
           { B: '1' }, { B: '3' },
-          { e: '0' }, { e: '3' }, { e: '5/7' }, { e: '5' }, { e: '3' }, { e: '0' },
+          { e: '0' }, { e: '1' }, { e: '2/4' }, { e: '3' }, { e: '1' }, { e: '0' },
           { B: '3' }, { B: '1/3' }, {}, {}
         ].forEach(n => m3.addBeat(n));
 
         const introTab = [m1.render(), m2.render(), m3.render()].join('\n\n');
 
-        // Verse fingerpicking over Cmaj7 and Am7
+        // Verse fingerpicking over Cmaj7 and Am7 — frets 0-3
         const v1 = new TabMatrix();
         [
           { A: '3' }, { G: '0' }, { B: '0' }, { e: '0' }, { G: '0' }, { B: '0' },
@@ -1004,20 +1038,20 @@
         ].forEach(n => v2.addBeat(n));
         const verseTab = [v1.render(), v2.render()].join('\n\n');
 
-        // Chorus rhythm strum & lead fills
+        // Chorus rhythm strum & lead fills — frets 0-3
         const c1 = new TabMatrix();
         [
           { e: '0', B: '1', G: '0', D: '2', A: '3' }, {},
-          { e: '3' }, { e: '3/5' }, { e: '3' }, { e: '0' },
+          { e: '1' }, { e: '1/3' }, { e: '3' }, { e: '0' },
           { e: '0', B: '1', G: '2', D: '2', A: '0' }, {},
           { B: '3' }, { B: '1' }, { B: '3' }, {}
         ].forEach(n => c1.addBeat(n));
         const chorusTab = c1.render();
 
-        // Outro cadence walkdown
+        // Outro cadence walkdown — strictly within frets 0-4
         const o1 = new TabMatrix();
         [
-          { e: '5/7' }, { e: '5' }, { e: '3' }, { e: '0' },
+          { e: '3' }, { e: '2/4' }, { e: '3' }, { e: '1' }, { e: '0' },
           { B: '3' }, { B: '1/3' }, { B: '1' }, { B: '0' },
           { G: '2' }, { G: '0' },
           { e: '0', B: '1', G: '0', D: '2', A: '3' }, {}
@@ -1042,25 +1076,25 @@
         };
       }
 
-      // --- PROCEDURAL ENGINE FOR ANY SONG ---
+      // --- PROCEDURAL ENGINE FOR ANY SONG (Strictly Frets 0-4) ---
       const seed = (title + (knownArtist || '')).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
+      // All keys defined strictly with lead notes within frets 0 to 4 (Index=1, Middle=2, Ring=3, Pinky=4)
       const MAJOR_KEYS = [
-        { key: 'C',  chords: ['C', 'Dm', 'Em', 'F', 'G', 'Am'], comp: ['Cadd9', 'Dm7', 'Em7', 'Fmaj7', 'Gsus4', 'Am7'], rootTuning: { C: 'A-3', Dm: 'D-0', Em: 'E-0', F: 'D-3', G: 'E-3', Am: 'A-0' }, leadNotes: { e: ['0', '1', '3', '5', '8'], B: ['0', '1', '3', '5'], slides: ['3/5', '5/7', '1/3'] }, capo: 'No Capo required' },
-        { key: 'G',  chords: ['G', 'Am', 'Bm', 'C', 'D', 'Em'], comp: ['G', 'Am7', 'Bm7', 'Cadd9', 'Dsus4', 'Em7'], rootTuning: { G: 'E-3', Am: 'A-0', Bm: 'A-2', C: 'A-3', D: 'D-0', Em: 'E-0' }, leadNotes: { e: ['0', '2', '3', '5', '7'], B: ['0', '1', '3', '5'], slides: ['3/5', '5/7', '0h2'] }, capo: 'No Capo required' },
-        { key: 'D',  chords: ['D', 'Em', 'F#m', 'G', 'A', 'Bm'], comp: ['D', 'Em7', 'F#m7', 'Gadd9', 'Asus4', 'Bm7'], rootTuning: { D: 'D-0', Em: 'E-0', 'F#m': 'E-2', G: 'E-3', A: 'A-0', Bm: 'A-2' }, leadNotes: { e: ['0', '2', '3', '5', '7'], B: ['2', '3', '5'], slides: ['2/3', '3/5', '5/7'] }, capo: 'No Capo required' },
-        { key: 'F',  chords: ['F', 'Gm', 'Am', 'Bb', 'C', 'Dm'], comp: ['Fmaj7', 'Gm7', 'Am7', 'Bbadd9', 'Csus4', 'Dm7'], rootTuning: { F: 'E-1', Gm: 'E-3', Am: 'A-0', Bb: 'A-1', C: 'A-3', Dm: 'D-0' }, leadNotes: { e: ['1', '3', '5', '6'], B: ['1', '3', '5', '6'], slides: ['3/5', '5/6', '1/3'] }, capo: 'Capo 1st Fret (E Shape)' },
-        { key: 'A',  chords: ['A', 'Bm', 'C#m', 'D', 'E', 'F#m'], comp: ['A', 'Bm7', 'C#m7', 'Dadd9', 'Esus4', 'F#m7'], rootTuning: { A: 'A-0', Bm: 'A-2', 'C#m': 'A-4', D: 'D-0', E: 'E-0', 'F#m': 'E-2' }, leadNotes: { e: ['0', '2', '4', '5'], B: ['0', '2', '5'], slides: ['2/4', '4/5', '0h2'] }, capo: 'Capo 2nd Fret (G Shape)' },
-        { key: 'E',  chords: ['E', 'F#m', 'G#m', 'A', 'B', 'C#m'], comp: ['E', 'F#m7', 'G#m7', 'Aadd9', 'Bsus4', 'C#m7'], rootTuning: { E: 'E-0', 'F#m': 'E-2', 'G#m': 'E-4', A: 'A-0', B: 'A-2', 'C#m': 'A-4' }, leadNotes: { e: ['0', '2', '4', '7'], B: ['0', '2', '4', '5'], slides: ['2/4', '4/7', '0h2'] }, capo: 'No Capo required' }
+        { key: 'C',  chords: ['C', 'Dm', 'Em', 'F', 'G', 'Am'], comp: ['Cadd9', 'Dm7', 'Em7', 'Fmaj7', 'Gsus4', 'Am7'], rootTuning: { C: 'A-3', Dm: 'D-0', Em: 'E-0', F: 'D-3', G: 'E-3', Am: 'A-0' }, leadNotes: { e: ['0', '1', '3'], B: ['0', '1', '3'], slides: ['1/3', '0h2', '2/4'] }, capo: 'No Capo required' },
+        { key: 'G',  chords: ['G', 'Am', 'Bm', 'C', 'D', 'Em'], comp: ['G', 'Am7', 'Bm7', 'Cadd9', 'Dsus4', 'Em7'], rootTuning: { G: 'E-3', Am: 'A-0', Bm: 'A-2', C: 'A-3', D: 'D-0', Em: 'E-0' }, leadNotes: { e: ['0', '2', '3'], B: ['0', '1', '3'], slides: ['0h2', '2/3', '2/4'] }, capo: 'No Capo required' },
+        { key: 'D',  chords: ['D', 'Em', 'F#m', 'G', 'A', 'Bm'], comp: ['D', 'Em7', 'F#m7', 'Gadd9', 'Asus4', 'Bm7'], rootTuning: { D: 'D-0', Em: 'E-0', 'F#m': 'E-2', G: 'E-3', A: 'A-0', Bm: 'A-2' }, leadNotes: { e: ['0', '2', '3'], B: ['2', '3', '0'], slides: ['0h2', '2/3', '2/4'] }, capo: 'No Capo required' },
+        { key: 'F',  chords: ['F', 'Gm', 'Am', 'Bb', 'C', 'Dm'], comp: ['Fmaj7', 'Gm7', 'Am7', 'Bbadd9', 'Csus4', 'Dm7'], rootTuning: { F: 'E-1', Gm: 'E-3', Am: 'A-0', Bb: 'A-1', C: 'A-3', Dm: 'D-0' }, leadNotes: { e: ['1', '3', '0'], B: ['1', '3', '0'], slides: ['1/3', '0h1', '2/4'] }, capo: 'Capo 1st Fret (E Shape)' },
+        { key: 'A',  chords: ['A', 'Bm', 'C#m', 'D', 'E', 'F#m'], comp: ['A', 'Bm7', 'C#m7', 'Dadd9', 'Esus4', 'F#m7'], rootTuning: { A: 'A-0', Bm: 'A-2', 'C#m': 'A-4', D: 'D-0', E: 'E-0', 'F#m': 'E-2' }, leadNotes: { e: ['0', '2', '4'], B: ['0', '2', '3'], slides: ['2/4', '0h2', '1h2'] }, capo: 'Capo 2nd Fret (G Shape)' },
+        { key: 'E',  chords: ['E', 'F#m', 'G#m', 'A', 'B', 'C#m'], comp: ['E', 'F#m7', 'G#m7', 'Aadd9', 'Bsus4', 'C#m7'], rootTuning: { E: 'E-0', 'F#m': 'E-2', 'G#m': 'E-4', A: 'A-0', B: 'A-2', 'C#m': 'A-4' }, leadNotes: { e: ['0', '2', '4'], B: ['0', '2', '4'], slides: ['2/4', '0h2', '1h2'] }, capo: 'No Capo required' }
       ];
 
       const MINOR_KEYS = [
-        { key: 'Am', chords: ['Am', 'Dm', 'Em', 'F', 'C', 'G'], comp: ['Am7', 'Dm7', 'Em7', 'Fmaj7', 'Cadd9', 'G7'], rootTuning: { Am: 'A-0', Dm: 'D-0', Em: 'E-0', F: 'D-3', C: 'A-3', G: 'E-3' }, leadNotes: { e: ['0', '1', '3', '5', '8'], B: ['0', '1', '3', '5'], slides: ['3/5', '5/7', '1/3'] }, capo: 'No Capo required' },
-        { key: 'Em', chords: ['Em', 'Am', 'Bm', 'C', 'G', 'D'], comp: ['Em7', 'Am7', 'Bm7', 'Cmaj7', 'Gadd9', 'D7'], rootTuning: { Em: 'E-0', Am: 'A-0', Bm: 'A-2', C: 'A-3', G: 'E-3', D: 'D-0' }, leadNotes: { e: ['0', '2', '3', '5', '7'], B: ['0', '1', '3', '5'], slides: ['3/5', '5/7', '0h2'] }, capo: 'No Capo required' },
-        { key: 'Dm', chords: ['Dm', 'Gm', 'Am', 'Bb', 'F', 'C'], comp: ['Dm7', 'Gm7', 'Am7', 'Bbmaj7', 'Fadd9', 'C7'], rootTuning: { Dm: 'D-0', Gm: 'E-3', Am: 'A-0', Bb: 'A-1', F: 'D-3', C: 'A-3' }, leadNotes: { e: ['1', '3', '5', '6'], B: ['1', '3', '5', '6'], slides: ['3/5', '5/6', '1/3'] }, capo: 'Capo 3rd Fret (Bm Shape)' }
+        { key: 'Am', chords: ['Am', 'Dm', 'Em', 'F', 'C', 'G'], comp: ['Am7', 'Dm7', 'Em7', 'Fmaj7', 'Cadd9', 'G7'], rootTuning: { Am: 'A-0', Dm: 'D-0', Em: 'E-0', F: 'D-3', C: 'A-3', G: 'E-3' }, leadNotes: { e: ['0', '1', '3'], B: ['0', '1', '3'], slides: ['1/3', '0h2', '2/4'] }, capo: 'No Capo required' },
+        { key: 'Em', chords: ['Em', 'Am', 'Bm', 'C', 'G', 'D'], comp: ['Em7', 'Am7', 'Bm7', 'Cmaj7', 'Gadd9', 'D7'], rootTuning: { Em: 'E-0', Am: 'A-0', Bm: 'A-2', C: 'A-3', G: 'E-3', D: 'D-0' }, leadNotes: { e: ['0', '2', '3'], B: ['0', '1', '3'], slides: ['0h2', '2/3', '2/4'] }, capo: 'No Capo required' },
+        { key: 'Dm', chords: ['Dm', 'Gm', 'Am', 'Bb', 'F', 'C'], comp: ['Dm7', 'Gm7', 'Am7', 'Bbmaj7', 'Fadd9', 'C7'], rootTuning: { Dm: 'D-0', Gm: 'E-3', Am: 'A-0', Bb: 'A-1', F: 'D-3', C: 'A-3' }, leadNotes: { e: ['1', '3', '0'], B: ['1', '3', '0'], slides: ['1/3', '0h1', '2/3'] }, capo: 'Capo 3rd Fret (Bm Shape)' }
       ];
 
-      // Detect mood: minor for melancholic/moody keywords, else balanced selection
       const lower = (title + ' ' + (knownArtist || '')).toLowerCase();
       const isMinorWord = /sad|cry|dark|blue|night|hurt|tear|heartbreak|alone|rain|lonely|slow|pain|minor/i.test(lower);
       const isMinor = isMinorWord || (seed % 3 === 0);
@@ -1068,14 +1102,7 @@
       const keyPool = isMinor ? MINOR_KEYS : MAJOR_KEYS;
       const keyData = keyPool[seed % keyPool.length];
 
-      // PROGRESSIONS: ALWAYS a balanced, authentic mix of Major and Minor chords!
-      // In Major:
-      // 0: I - V - vi - IV (e.g. C - G - Am - F) -> Maj, Maj, Min, Maj
-      // 1: vi - IV - I - V (e.g. Am - F - C - G) -> Min, Maj, Maj, Maj
-      // 2: I - vi - IV - V (e.g. C - Am - F - G) -> Maj, Min, Maj, Maj
-      // 3: I - iii - vi - IV (e.g. C - Em - Am - F) -> Maj, Min, Min, Maj
-      // 4: IV - V - iii - vi (e.g. F - G - Em - Am) -> Maj, Maj, Min, Min
-      // 5: I - V - ii - IV (e.g. C - G - Dm - F) -> Maj, Maj, Min, Maj
+      // PROGRESSIONS: Balanced, authentic mix of Major and Minor chords
       const MAJOR_INDEX_COMBOS = [
         [0, 4, 5, 3], // I - V - vi - IV
         [5, 3, 0, 4], // vi - IV - I - V
@@ -1085,11 +1112,6 @@
         [0, 4, 1, 3]  // I - V - ii - IV
       ];
 
-      // In Minor:
-      // 0: i - VI - III - VII (e.g. Am - F - C - G) -> Min, Maj, Maj, Maj (healthy mix!)
-      // 1: i - iv - VI - V (e.g. Am - Dm - F - G) -> Min, Min, Maj, Maj
-      // 2: i - VII - VI - V (e.g. Am - G - F - Em) -> Min, Maj, Maj, Min
-      // 3: i - VI - iv - v (e.g. Am - F - Dm - Em) -> Min, Maj, Min, Min
       const MINOR_INDEX_COMBOS = [
         [0, 3, 4, 5], // i - VI - III - VII
         [0, 1, 3, 5], // i - iv - VI - VII
@@ -1112,22 +1134,22 @@
       ];
       const strummingPattern = strummingPatterns[seed % strummingPatterns.length];
 
-      // --- Build Tablature via TabMatrix ---
+      // --- Build Tablature via TabMatrix with frets strictly in [0, 1, 2, 3, 4] ---
       const ln = keyData.leadNotes;
-      const slide1 = ln.slides[0] || '3/5';
-      const slide2 = ln.slides[1] || '5/7';
+      const slide1 = ln.slides[0] || '1/3';
+      const slide2 = ln.slides[1] || '2/4';
 
-      // 1. Intro Melodic Hook (similar in feel and phrasing to user's reference)
+      // 1. Intro Melodic Hook (frets 0, 1, 2, 3, 4)
       const intro1 = new TabMatrix();
       [
-        { e: ln.e[0] || '0' }, { e: ln.e[1] || '3' }, { e: slide1 }, { e: ln.e[1] || '3' }, { e: ln.e[0] || '0' },
+        { e: ln.e[0] || '0' }, { e: ln.e[1] || '1' }, { e: slide1 }, { e: ln.e[2] || '3' }, { e: ln.e[0] || '0' },
         { B: ln.B[2] || '3' }, { B: ln.B[1] || '1' }, { B: ln.B[1] || '1' }, { B: ln.B[2] || '3' },
         { e: ln.e[0] || '0' }, { B: ln.B[2] || '3' }, {}, {}
       ].forEach(n => intro1.addBeat(n));
 
       const intro2 = new TabMatrix();
       [
-        { e: ln.e[0] || '0' }, { e: ln.e[1] || '3' }, { e: slide1 }, { e: ln.e[1] || '3' }, { e: ln.e[0] || '0' },
+        { e: ln.e[0] || '0' }, { e: ln.e[1] || '1' }, { e: slide1 }, { e: ln.e[2] || '3' }, { e: ln.e[0] || '0' },
         { B: ln.B[2] || '3' }, { B: ln.B[1] || '1' }, { B: ln.B[1] || '1' }, { B: ln.B[2] || '3' },
         { e: ln.e[0] || '0' }, { B: ln.B[2] || '3' }, { e: ln.e[0] || '0' }, { B: ln.B[2] || '3' }, { B: ln.B[1] || '1' }
       ].forEach(n => intro2.addBeat(n));
@@ -1135,13 +1157,13 @@
       const intro3 = new TabMatrix();
       [
         { B: ln.B[1] || '1' }, { B: ln.B[2] || '3' },
-        { e: ln.e[0] || '0' }, { e: ln.e[1] || '3' }, { e: slide2 }, { e: ln.e[2] || '5' }, { e: ln.e[1] || '3' }, { e: ln.e[0] || '0' },
-        { B: ln.B[2] || '3' }, { B: ln.slides[2] || '1/3' }, {}, {}
+        { e: ln.e[0] || '0' }, { e: ln.e[1] || '1' }, { e: slide2 }, { e: ln.e[2] || '3' }, { e: ln.e[1] || '1' }, { e: ln.e[0] || '0' },
+        { B: ln.B[2] || '3' }, { B: ln.slides[0] || '1/3' }, {}, {}
       ].forEach(n => intro3.addBeat(n));
 
       const introTab = [intro1.render(), intro2.render(), intro3.render()].join('\n\n');
 
-      // 2. Verse Acoustic Fingerpicking / Picking Groove
+      // 2. Verse Acoustic Fingerpicking / Picking Groove (frets 0 to 4)
       const v1 = new TabMatrix();
       const c1Name = beginnerChords[0];
       const c2Name = beginnerChords[1];
@@ -1166,22 +1188,22 @@
 
       const verseTab = [v1.render(), v2.render()].join('\n\n');
 
-      // 3. Chorus Rhythmic Strum & Melodic Accents
+      // 3. Chorus Rhythmic Strum & Melodic Accents (frets 0 to 4)
       const ch1 = new TabMatrix();
       [
         { e: ln.e[0] || '0', B: ln.B[1] || '1', G: '0', D: '2', A: '3' }, {},
-        { e: ln.e[1] || '3' }, { e: slide1 }, { e: ln.e[1] || '3' }, { e: ln.e[0] || '0' },
+        { e: ln.e[1] || '1' }, { e: slide1 }, { e: ln.e[2] || '3' }, { e: ln.e[0] || '0' },
         { e: ln.e[0] || '0', B: ln.B[1] || '1', G: '2', D: '2', A: '0' }, {},
         { B: ln.B[2] || '3' }, { B: ln.B[1] || '1' }, { B: ln.B[2] || '3' }, {}
       ].forEach(n => ch1.addBeat(n));
 
       const chorusTab = ch1.render();
 
-      // 4. Outro Melodic Cadence Walkdown
+      // 4. Outro Melodic Cadence Walkdown (frets 0 to 4)
       const out1 = new TabMatrix();
       [
-        { e: slide2 }, { e: ln.e[2] || '5' }, { e: ln.e[1] || '3' }, { e: ln.e[0] || '0' },
-        { B: ln.B[2] || '3' }, { B: ln.slides[2] || '1/3' }, { B: ln.B[1] || '1' }, { B: ln.B[0] || '0' },
+        { e: ln.e[2] || '3' }, { e: slide2 }, { e: ln.e[2] || '3' }, { e: ln.e[1] || '1' }, { e: ln.e[0] || '0' },
+        { B: ln.B[2] || '3' }, { B: ln.slides[0] || '1/3' }, { B: ln.B[1] || '1' }, { B: ln.B[0] || '0' },
         { G: '2' }, { G: '0' },
         { e: ln.e[0] || '0', B: ln.B[1] || '1', G: '0', D: '2', A: '3' }, {}
       ].forEach(n => out1.addBeat(n));
@@ -1205,6 +1227,7 @@
         ]
       };
     }
+
 
     // Render Output into UI
     function renderOutput(data) {
