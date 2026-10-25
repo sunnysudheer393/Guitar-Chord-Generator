@@ -266,7 +266,7 @@
         <div id="loading-state" class="hidden flex-1 flex flex-col items-center justify-center text-center p-8">
           <div class="w-12 h-12 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin mb-4"></div>
           <h3 class="text-sm font-semibold text-slate-200 mb-1">Analyzing Harmony & Tab Rhythm...</h3>
-          <p class="text-xs text-slate-400">Extracting exact composer voicings and generating ASCII tabs</p>
+          <p class="text-xs text-slate-400">Analyzing the available source and preparing chords, rhythm, and tablature</p>
         </div>
 
         <!-- Output Content Container -->
@@ -571,7 +571,7 @@
         const title = document.getElementById('yt-title').value.trim();
         if (title) return title;
         const url = document.getElementById('yt-url').value.trim();
-        return url ? 'YouTube Track ' + url.substring(url.length - 6) : 'YouTube Audio Track';
+        return url ? '' : 'YouTube Audio Track';
       } else if (activeTab === 'tab-audio') {
         const fileInput = document.getElementById('audio-file');
         if (fileInput.files && fileInput.files[0]) {
@@ -588,9 +588,10 @@
 
       let songTitle = getActiveSongTitle();
       let songArtist = '';
+      let songAlbum = '';
       const apiKey = localStorage.getItem('riffgen_gemini_key') || '';
 
-      // --- Resolve real YouTube video title via oEmbed (free, no auth) ---
+      // Resolve the video title first, then match it to a catalog recording.
       if (activeTab === 'tab-yt') {
         const ytUrl = document.getElementById('yt-url').value.trim();
         if (ytUrl) {
@@ -598,15 +599,27 @@
             const oEmbed = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(ytUrl)}&format=json`);
             if (oEmbed.ok) {
               const oData = await oEmbed.json();
-              if (oData.title) {
-                songTitle  = oData.title;
-                songArtist = oData.author_name || '';
-                // Pre-fill the optional title field so it's visible to the user
-                const titleField = document.getElementById('yt-title');
-                if (titleField && !titleField.value.trim()) titleField.value = oData.title;
+              const titleField = document.getElementById('yt-title');
+              if (oData.title && !titleField.value.trim()) {
+                songTitle = oData.title;
+                titleField.value = oData.title;
               }
             }
-          } catch (_) { /* oEmbed failed — use the URL-derived title */ }
+          } catch (err) {
+            console.warn('Could not resolve YouTube song metadata; continuing with the entered title.', err);
+          }
+
+          songTitle = document.getElementById('yt-title').value.trim() || songTitle || 'YouTube Audio Track';
+          try {
+            const catalogMatch = await findSongMetadata(songTitle);
+            if (catalogMatch) {
+              songTitle = catalogMatch.trackName;
+              songArtist = catalogMatch.artistName;
+              songAlbum = catalogMatch.collectionName || '';
+            }
+          } catch (err) {
+            console.warn('Could not look up song artist and album metadata.', err);
+          }
         }
       }
 
@@ -616,27 +629,55 @@
       document.getElementById('loading-state').classList.remove('hidden');
 
       let resultData = null;
+      let analysisSource = 'Offline theory estimate';
 
       if (apiKey) {
         try {
-          resultData = await fetchGeminiTab(songTitle, apiKey, songArtist);
+          resultData = await fetchGeminiTab(songTitle, apiKey, songArtist, songAlbum);
+          analysisSource = activeTab === 'tab-audio' ? 'AI audio analysis' : 'AI-assisted estimate';
         } catch (err) {
           console.warn('Gemini API call failed or timed out. Falling back to rule engine.', err);
-          resultData = generateFallbackTab(songTitle, songArtist);
+          resultData = generateFallbackTab(songTitle, songArtist, songAlbum);
         }
       } else {
         // Fallback theory engine
         await new Promise(r => setTimeout(r, 600)); // Smooth loading simulation
-        resultData = generateFallbackTab(songTitle, songArtist);
+        resultData = generateFallbackTab(songTitle, songArtist, songAlbum);
       }
 
+      resultData.artist = songArtist || resultData.artist || '';
+      resultData.album = songAlbum || resultData.album || '';
+      resultData.analysisSource = analysisSource;
       currentData = resultData;
       transposeOffset = 0;
       renderOutput(resultData);
     }
 
     // Call Gemini API (gemini-2.5-flash)
-    async function fetchGeminiTab(title, apiKey, knownArtist) {
+    async function findSongMetadata(title) {
+      if (!title) return null;
+      const query = encodeURIComponent(title);
+      const response = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=10&entity=song`);
+      if (!response.ok) throw new Error(`Song metadata lookup failed (${response.status})`);
+      const results = (await response.json()).results || [];
+      const normalize = value => value.toLowerCase()
+        .replace(/\b(official|music|video|audio|lyrics?|visualizer|remastered|4k|hd)\b/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+      const searchTitle = normalize(title);
+      const searchWords = new Set(searchTitle.split(/\s+/).filter(word => word.length > 2));
+      const scored = results.map(track => {
+        const candidate = normalize(track.trackName || '');
+        if (!candidate) return { track, score: 0 };
+        if (candidate === searchTitle) return { track, score: 1 };
+        const candidateWords = new Set(candidate.split(/\s+/).filter(word => word.length > 2));
+        const overlap = [...searchWords].filter(word => candidateWords.has(word)).length;
+        return { track, score: overlap / Math.max(searchWords.size, candidateWords.size, 1) };
+      }).sort((a, b) => b.score - a.score);
+      return scored[0]?.score >= 0.5 ? scored[0].track : null;
+    }
+
+    async function fetchGeminiTab(title, apiKey, knownArtist, knownAlbum) {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
       // Handle multimodal audio input if available
@@ -659,9 +700,10 @@
 
       const ytUrl = activeTab === 'tab-yt' ? document.getElementById('yt-url').value.trim() : '';
       const artistHint = knownArtist ? ` by ${knownArtist}` : '';
+      const albumHint = knownAlbum ? ` from the album "${knownAlbum}"` : '';
       const songRef = ytUrl
-        ? `the song "${title}"${artistHint} from this YouTube link: ${ytUrl}`
-        : `the song: "${title}"${artistHint}`;
+        ? `the song "${title}"${artistHint}${albumHint} from this YouTube link: ${ytUrl}`
+        : `the song: "${title}"${artistHint}${albumHint}`;
 
       const promptText = `Act as an expert music director and professional guitarist.
       ${ audioData
@@ -669,10 +711,16 @@
         : `Extract authentic guitar chords and 6-string ASCII tablature for ${songRef}.`
       }
 
+      Analyze the supplied recording when present; do not guess a generic progression from the title.
+      Reflect the heard harmony: major, minor, diminished, suspended, and extended chords should follow the music rather than forcing one quality throughout.
+      For melodic sections, write single-note guitar phrases that follow the song's chord tones and rhythm, not repeated full chord grips on every string.
+      Use distinct phrases per section and never copy a supplied example. If only metadata or a YouTube URL is available and you cannot analyze its audio, label the output as an estimate rather than claiming it is verified.
+
       Return ONLY a valid JSON object with no markdown formatting around it, matching this schema:
       {
         "title": "${title}",
-        "artist": "${knownArtist || 'Artist / Movie info'}",
+        "artist": "${knownArtist || ''}",
+        "album": "${knownAlbum || ''}",
         "key": "Key signature",
         "composerChords": ["Cmaj7", "Am7", "Fadd9", "G7"],
         "beginnerChords": ["C", "Am", "F", "G"],
@@ -722,43 +770,19 @@
       }
 
       const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleaned);
+      const result = JSON.parse(cleaned);
+      result.title = title;
+      result.artist = knownArtist || result.artist || '';
+      result.album = knownAlbum || result.album || '';
+      return result;
     }
 
     // Dynamic Fallback Theory Engine
-    function generateFallbackTab(title, knownArtist) {
-      const isExample = title.toLowerCase().includes('rear view mirror') || title.toLowerCase().includes('bethlehem');
-
-      if (isExample) {
-        return {
-          title: 'Rear View Mirror',
-          artist: 'Bethlehem Kudumba Unit | Vishnu Vijay',
-          key: 'C Major',
-          composerChords: ['Cmaj7', 'Am7', 'Fmaj7', 'Gsus4', 'G7'],
-          beginnerChords: ['C', 'Am', 'F', 'G'],
-          recommendedCapo: 'No Capo required',
-          strummingPattern: 'D - D U - U D U',
-          sections: [
-            {
-              name: 'Intro Arpeggio',
-              tab: 'e|-------0-------0-------0-------0---| \nB|-----1---1---1-------1---1---1-----| \nG|---0-------0-------0-------0-------| \nD|-----------------------------------| \nA|-3---------------0-----------------| \nE|-----------------------------------| '
-            },
-            {
-              name: 'Verse Melody Riff',
-              tab: 'e|-----------------------------------| \nB|--1--1--3--1---0---1--1--3--1---0--| \nG|--0--0--0--0---0---0--0--0--0---0--| \nD|--2--2--2--2---0---2--2--2--2---0--| \nA|--3--3--3--3---2---0--0--0--0---2--| \nE|---------------+-------------------| '
-            },
-            {
-              name: 'Chorus Rhythm Strum',
-              tab: 'e|--0--0-0-0---0--0-0-0---1--1-1-1---| \nB|--1--1-1-1---1--1-1-1---1--1-1-1---| \nG|--0--0-0-0---2--2-2-2---2--2-2-2---| \nD|--2--2-2-2---2--2-2-2---3--3-3-3---| \nA|--3--3-3-3---0--0-0-0---3--3-3-3---| \nE|---------------+--------1--1-1-1---| '
-            }
-          ]
-        };
-      }
-
+    function generateFallbackTab(title, knownArtist, knownAlbum) {
       // --- PROCEDURAL GENERATOR ---
       const seed = title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-      const keys = ['C', 'G', 'D', 'A', 'E', 'F', 'Bb'];
+      const keys = ['C', 'G', 'D', 'A', 'E', 'F', 'A#'];
       const selectedKey = keys[seed % keys.length];
       const isMinor = (seed % 2 === 0);
       const scaleType = isMinor ? 'minor' : 'major';
@@ -775,8 +799,10 @@
         return rootNote + (TYPE_SUFFIX_MAP[type] ?? type);
       };
 
-      // Progression: I – IV – V – I
-      const progressionDegrees = [0, 3, 4, 0];
+      const progressions = isMinor
+        ? [[0, 5, 2, 6], [0, 3, 5, 4], [0, 6, 5, 6], [0, 2, 5, 6]]
+        : [[0, 4, 5, 3], [0, 5, 3, 4], [0, 3, 5, 4], [0, 3, 4, 0]];
+      const progressionDegrees = progressions[Math.floor(seed / 7) % progressions.length];
 
       // Beginner: plain triads
       const beginnerChords = progressionDegrees.map(d => getChordForDegree(d));
@@ -803,7 +829,7 @@
         return rootNote + ext;
       });
 
-      // Dynamic Strumming Pattern
+      // The title seed varies the theory-based estimate; it is not audio analysis.
       const patterns = [
         'D - D U - U D U',
         'D - - U D - U D',
@@ -813,33 +839,84 @@
       ];
       const strummingPattern = patterns[seed % patterns.length];
 
-      const capoMap = { 'Bb': 'Capo 3rd Fret (G Shape)', 'F': 'Capo 1st Fret (E Shape)', 'Eb': 'Capo 1st Fret (Db Shape)' };
+      const capoMap = { 'A#': 'Capo 3rd Fret (G Shape)', 'F': 'Capo 1st Fret (E Shape)' };
       const recommendedCapo = capoMap[selectedKey] || 'No Capo required';
 
       return {
         title: title,
-        artist: knownArtist || 'Procedurally Analyzed Track',
+        artist: knownArtist || '',
+        album: knownAlbum || '',
         key: fullKeyName,
         composerChords: composerChords,
         beginnerChords: beginnerChords,
         recommendedCapo: recommendedCapo,
         strummingPattern: strummingPattern,
         sections: [
-          { name: 'Intro',  tab: buildTabFromChords([beginnerChords[0]], 'arpeggio') },
-          { name: 'Verse',  tab: buildTabFromChords([beginnerChords[0], beginnerChords[1]], 'strum') },
-          { name: 'Chorus', tab: buildTabFromChords([beginnerChords[2], beginnerChords[3] || beginnerChords[0]], 'strum') },
-          { name: 'Outro',  tab: buildTabFromChords([beginnerChords[3] || beginnerChords[0], beginnerChords[0]], 'arpeggio') }
+          { name: 'Intro (theory-based estimate)', tab: buildMelodicTab(progressionDegrees, scaleInfo, rootIdx, seed, 0, strummingPattern) },
+          { name: 'Verse (theory-based estimate)', tab: buildMelodicTab(progressionDegrees, scaleInfo, rootIdx, seed, 1, strummingPattern) },
+          { name: 'Chorus (theory-based estimate)', tab: buildMelodicTab(progressionDegrees, scaleInfo, rootIdx, seed, 2, strummingPattern) },
+          { name: 'Outro (theory-based estimate)', tab: buildMelodicTab(progressionDegrees, scaleInfo, rootIdx, seed, 3, strummingPattern) }
         ]
       };
+    }
+
+    function buildMelodicTab(progressionDegrees, scaleInfo, keyRoot, seed, sectionIndex, strummingPattern) {
+      const rows = ['e', 'B', 'G', 'D', 'A', 'E'].map(name => `${name}|`);
+      const tuning = { e: 4, B: 11, G: 7, D: 2, A: 9, E: 4 };
+      const chordToneIntervals = { min: [0, 3, 7], dim: [0, 3, 6] };
+      const melodyShape = [
+        [0, 2, 4, 2, 1, 0, 2, 4],
+        [2, 4, 5, 4, 2, 1, 0, 1],
+        [4, 5, 4, 2, 4, 2, 1, 0],
+        [0, 1, 2, 4, 2, 1, 0, 2]
+      ][sectionIndex];
+      const phrase = [];
+      const rhythm = strummingPattern.split(/\s+/);
+
+      for (let slot = 0; slot < 16; slot++) {
+        if (rhythm[slot % rhythm.length] === '-') {
+          phrase.push(null);
+          continue;
+        }
+        const chordIndex = Math.floor(slot / 4) % progressionDegrees.length;
+        const degree = progressionDegrees[chordIndex];
+        const root = scaleInfo.intervals[degree];
+        const quality = scaleInfo.chords[degree];
+        const intervals = chordToneIntervals[quality] || [0, 4, 7];
+        const chordTone = intervals[melodyShape[(slot + seed + sectionIndex) % melodyShape.length] % intervals.length];
+        const pitch = (keyRoot + root + chordTone) % 12;
+        const candidates = [];
+        ['e', 'B', 'G'].forEach((stringName, stringIndex) => {
+          for (let fret = 0; fret <= 12; fret++) {
+            if ((tuning[stringName] + fret) % 12 === pitch) candidates.push({ stringIndex, fret });
+          }
+        });
+        const target = candidates[(slot + seed) % candidates.length];
+        phrase.push(target);
+      }
+
+      phrase.forEach(note => {
+        const width = 4;
+        for (let rowIndex = 0; rowIndex < 6; rowIndex++) {
+          if (note && rowIndex === note.stringIndex) {
+            const fret = String(note.fret);
+            rows[rowIndex] += '-'.repeat(Math.max(0, width - fret.length - 1)) + fret + '-';
+          } else {
+            rows[rowIndex] += '----';
+          }
+        }
+      });
+      return rows.map(row => `${row}|`).join('\n');
     }
 
     // Render Output into UI
     function renderOutput(data) {
       document.getElementById('loading-state').classList.add('hidden');
       document.getElementById('output-content').classList.remove('hidden');
+      document.getElementById('res-badge').innerText = data.analysisSource || 'Generated tablature';
 
       document.getElementById('res-title').innerText = data.title;
-      document.getElementById('res-artist').innerText = data.artist || 'Original Track Composition';
+      document.getElementById('res-artist').innerText = [data.artist, data.album].filter(Boolean).join(' · ') || 'Artist and album not identified';
       document.getElementById('res-key').innerText = `Key: ${data.key || 'C Major'}`;
       document.getElementById('recommended-capo').innerText = data.recommendedCapo || 'No Capo';
       document.getElementById('strum-pattern').innerText = data.strummingPattern || 'D - D U - U D U';
