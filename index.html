@@ -585,9 +585,30 @@
     // Main Generation Handler
     async function handleGenerate(e) {
       e.preventDefault();
-      
-      const songTitle = getActiveSongTitle();
+
+      let songTitle = getActiveSongTitle();
+      let songArtist = '';
       const apiKey = localStorage.getItem('riffgen_gemini_key') || '';
+
+      // --- Resolve real YouTube video title via oEmbed (free, no auth) ---
+      if (activeTab === 'tab-yt') {
+        const ytUrl = document.getElementById('yt-url').value.trim();
+        if (ytUrl) {
+          try {
+            const oEmbed = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(ytUrl)}&format=json`);
+            if (oEmbed.ok) {
+              const oData = await oEmbed.json();
+              if (oData.title) {
+                songTitle  = oData.title;
+                songArtist = oData.author_name || '';
+                // Pre-fill the optional title field so it's visible to the user
+                const titleField = document.getElementById('yt-title');
+                if (titleField && !titleField.value.trim()) titleField.value = oData.title;
+              }
+            }
+          } catch (_) { /* oEmbed failed — use the URL-derived title */ }
+        }
+      }
 
       // UI States
       document.getElementById('empty-state').classList.add('hidden');
@@ -598,15 +619,15 @@
 
       if (apiKey) {
         try {
-          resultData = await fetchGeminiTab(songTitle, apiKey);
+          resultData = await fetchGeminiTab(songTitle, apiKey, songArtist);
         } catch (err) {
-          console.warn("Gemini API call failed or timed out. Falling back to rule engine.", err);
-          resultData = generateFallbackTab(songTitle);
+          console.warn('Gemini API call failed or timed out. Falling back to rule engine.', err);
+          resultData = generateFallbackTab(songTitle, songArtist);
         }
       } else {
         // Fallback theory engine
         await new Promise(r => setTimeout(r, 600)); // Smooth loading simulation
-        resultData = generateFallbackTab(songTitle);
+        resultData = generateFallbackTab(songTitle, songArtist);
       }
 
       currentData = resultData;
@@ -615,7 +636,7 @@
     }
 
     // Call Gemini API (gemini-2.5-flash)
-    async function fetchGeminiTab(title, apiKey) {
+    async function fetchGeminiTab(title, apiKey, knownArtist) {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
       // Handle multimodal audio input if available
@@ -636,13 +657,22 @@
         };
       }
 
+      const ytUrl = activeTab === 'tab-yt' ? document.getElementById('yt-url').value.trim() : '';
+      const artistHint = knownArtist ? ` by ${knownArtist}` : '';
+      const songRef = ytUrl
+        ? `the song "${title}"${artistHint} from this YouTube link: ${ytUrl}`
+        : `the song: "${title}"${artistHint}`;
+
       const promptText = `Act as an expert music director and professional guitarist.
-      ${audioData ? "I have provided an audio recording of the song. Please analyze the harmonic content and audio frequencies of the provided audio file to extract the authentic guitar chords and 6-string ASCII tablature." : `Extract authentic guitar chords and 6-string ASCII tablature for the song: "${title}".`}
+      ${ audioData
+        ? 'I have provided an audio recording of the song. Please analyze the harmonic content and audio frequencies of the provided audio file to extract the authentic guitar chords and 6-string ASCII tablature.'
+        : `Extract authentic guitar chords and 6-string ASCII tablature for ${songRef}.`
+      }
 
       Return ONLY a valid JSON object with no markdown formatting around it, matching this schema:
       {
         "title": "${title}",
-        "artist": "Artist / Movie info",
+        "artist": "${knownArtist || 'Artist / Movie info'}",
         "key": "Key signature",
         "composerChords": ["Cmaj7", "Am7", "Fadd9", "G7"],
         "beginnerChords": ["C", "Am", "F", "G"],
@@ -651,20 +681,26 @@
         "sections": [
           {
             "name": "Intro",
-            "tab": "e|---0-------0---|\\nB|-----1---1-----|\\nG|-0-----0-------|\\nD|---------------|\\nA|---------------|\\nE|---------------|"
+            "tab": "e|---0-----------0-------|\\nB|-----1-------1---------|\\nG|-------0---0-----------|\\nD|-----------2-----------|\\nA|---------3-------------|\\nE|-----------------------|"
           },
           {
             "name": "Verse",
-            "tab": "e|---0---0---1---|\\nB|---1---1---1---|\\nG|---0---2---2---|\\nD|---2---2---3---|\\nA|---3---0---3---|\\nE|-----------1---|"
+            "tab": "e|---0---0---1---3-------|\\nB|---1---1---1---0-------|\\nG|---0---2---2---0-------|\\nD|---2---2---3---0-------|\\nA|---3---0---3---2-------|\\nE|---x---x---1---3-------|"
           }
         ]
       }
 
-      CRITICAL: Ensure the "tab" fields contain actual fret numbers (e.g., 0, 1, 2, 3, 4, 5, 7) and a proper ASCII 6-string guitar layout. Do NOT return tabs filled only with zeros.`;
+      CRITICAL RULES:
+      - The "tab" fields MUST use a proper 6-string guitar layout with strings: e B G D A E (high to low)
+      - Notes should appear at DIFFERENT horizontal positions (not all aligned in one column)
+      - Use actual fret numbers (0–12). Muted strings are 'x'. Open strings are '0'.
+      - Do NOT stack the same number on every string at the same horizontal position.
+      - Arpeggio sections should show individual notes spaced across the bar.
+      - Strum sections may show chord blocks but should include rhythmic spacing.`;
 
       const parts = [{ text: promptText }];
       if (audioData) {
-        parts.unshift(audioData); // Add audio data before the text prompt
+        parts.unshift(audioData);
       }
 
       const res = await fetch(endpoint, {
@@ -674,8 +710,6 @@
       });
 
       const json = await res.json();
-
-      // Debugging response
       console.log('Gemini Response JSON:', json);
 
       if (json.error) {
@@ -684,46 +718,44 @@
 
       const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!rawText) {
-        throw new Error("No content returned from Gemini API");
+        throw new Error('No content returned from Gemini API');
       }
 
-      // Clean potential code fences
       const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleaned);
     }
 
     // Dynamic Fallback Theory Engine
-    function generateFallbackTab(title) {
+    function generateFallbackTab(title, knownArtist) {
       const isExample = title.toLowerCase().includes('rear view mirror') || title.toLowerCase().includes('bethlehem');
 
       if (isExample) {
         return {
-          title: "Rear View Mirror",
-          artist: "Bethlehem Kudumba Unit | Vishnu Vijay",
-          key: "C Major",
-          composerChords: ["Cmaj7", "Am7", "Fmaj7", "Gsus4", "G7"],
-          beginnerChords: ["C", "Am", "F", "G"],
-          recommendedCapo: "No Capo required",
-          strummingPattern: "D - D U - U D U",
+          title: 'Rear View Mirror',
+          artist: 'Bethlehem Kudumba Unit | Vishnu Vijay',
+          key: 'C Major',
+          composerChords: ['Cmaj7', 'Am7', 'Fmaj7', 'Gsus4', 'G7'],
+          beginnerChords: ['C', 'Am', 'F', 'G'],
+          recommendedCapo: 'No Capo required',
+          strummingPattern: 'D - D U - U D U',
           sections: [
             {
-              name: "Intro Arpeggio",
-              tab: "e|-------0-------0-------0-------0---| \nB|-----1---1---1-------1---1---1-----| \nG|---0-------0-------0-------0-------| \nD|-----------------------------------| \nA|-3---------------0-----------------| \nE|-----------------------------------| "
+              name: 'Intro Arpeggio',
+              tab: 'e|-------0-------0-------0-------0---| \nB|-----1---1---1-------1---1---1-----| \nG|---0-------0-------0-------0-------| \nD|-----------------------------------| \nA|-3---------------0-----------------| \nE|-----------------------------------| '
             },
             {
-              name: "Verse Melody Riff",
-              tab: "e|-----------------------------------| \nB|--1--1--3--1---0---1--1--3--1---0--| \nG|--0--0--0--0---0---0--0--0--0---0--| \nD|--2--2--2--2---0---2--2--2--2---0--| \nA|--3--3--3--3---2---0--0--0--0---2--| \nE|---------------+-------------------| "
+              name: 'Verse Melody Riff',
+              tab: 'e|-----------------------------------| \nB|--1--1--3--1---0---1--1--3--1---0--| \nG|--0--0--0--0---0---0--0--0--0---0--| \nD|--2--2--2--2---0---2--2--2--2---0--| \nA|--3--3--3--3---2---0--0--0--0---2--| \nE|---------------+-------------------| '
             },
             {
-              name: "Chorus Rhythm Strum",
-              tab: "e|--0--0-0-0---0--0-0-0---1--1-1-1---| \nB|--1--1-1-1---1--1-1-1---1--1-1-1---| \nG|--0--0-0-0---2--2-2-2---2--2-2-2---| \nD|--2--2-2-2---2--2-2-2---3--3-3-3---| \nA|--3--3-3-3---0--0-0-0---3--3-3-3---| \nE|---------------+--------1--1-1-1---| "
+              name: 'Chorus Rhythm Strum',
+              tab: 'e|--0--0-0-0---0--0-0-0---1--1-1-1---| \nB|--1--1-1-1---1--1-1-1---1--1-1-1---| \nG|--0--0-0-0---2--2-2-2---2--2-2-2---| \nD|--2--2-2-2---2--2-2-2---3--3-3-3---| \nA|--3--3-3-3---0--0-0-0---3--3-3-3---| \nE|---------------+--------1--1-1-1---| '
             }
           ]
         };
       }
 
-      // --- PROCEDURAL GENERATOR FOR 100% SPEC COMPLIANCE ---
-      // Generate a seed from the title to ensure the same song always gets the same "random" chords
+      // --- PROCEDURAL GENERATOR ---
       const seed = title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
       const keys = ['C', 'G', 'D', 'A', 'E', 'F', 'Bb'];
@@ -732,12 +764,9 @@
       const scaleType = isMinor ? 'minor' : 'major';
       const fullKeyName = `${selectedKey} ${scaleType === 'major' ? 'Major' : 'Minor'}`;
 
-      // Dynamically derive chords from the selected scale
       const scaleInfo = SCALES[scaleType];
       const rootIdx = CHROMATIC_SCALE.indexOf(selectedKey);
 
-      // FIX (Bug 3): Map chord types to standard notation suffixes
-      // 'maj' → '' (e.g. "C"), 'min' → 'm' (e.g. "Am"), 'dim' → 'dim' (e.g. "Bdim")
       const TYPE_SUFFIX_MAP = { 'maj': '', 'min': 'm', 'dim': 'dim', 'dom7': '7', 'maj7': 'maj7', 'min7': 'm7' };
 
       const getChordForDegree = (degree) => {
@@ -746,57 +775,60 @@
         return rootNote + (TYPE_SUFFIX_MAP[type] ?? type);
       };
 
-      // Create a musically sound progression: I - IV - V - I (major) or i - iv - V - i (minor)
-      const progressionDegrees = [0, 3, 4, 0]; // I, IV, V, I
-      const composerChords = progressionDegrees.map(d => {
-        const chord = getChordForDegree(d);
-        // Add occasional extensions for "Composer" feel
-        const extensions = ['maj7', 'add9', 'sus4', '7'];
-        return (seed % 5 === 0) ? chord + extensions[seed % 4] : chord;
-      });
+      // Progression: I – IV – V – I
+      const progressionDegrees = [0, 3, 4, 0];
 
-      // FIX (Bug 5): Beginner chords are just the plain triads — no need for regex stripping
+      // Beginner: plain triads
       const beginnerChords = progressionDegrees.map(d => getChordForDegree(d));
 
-      // Dynamic Strumming Pattern based on seed
+      // Composer: always add type-appropriate extensions for a richer, more specific sound
+      const MAJ_EXTS  = ['maj7', 'add9', 'sus2', 'maj9'];
+      const MIN_EXTS  = ['m7',   'm9',   'madd9'];
+      const DOM_EXTS  = ['7',    'sus4', '9',    '7sus4'];
+      const composerChords = progressionDegrees.map((d, i) => {
+        const rootNote = CHROMATIC_SCALE[(rootIdx + scaleInfo.intervals[d]) % 12];
+        const type = scaleInfo.chords[d];
+        const base = TYPE_SUFFIX_MAP[type] ?? type;
+        // Pick extension based on chord quality and seed variation
+        let ext;
+        if (base === '' || base === 'maj7') {            // major-family
+          ext = MAJ_EXTS[(seed + i) % MAJ_EXTS.length];
+        } else if (base === 'm' || base === 'm7') {       // minor-family
+          ext = MIN_EXTS[(seed + i) % MIN_EXTS.length];
+        } else if (base === 'dim') {                       // diminished
+          ext = 'dim7';
+        } else {
+          ext = DOM_EXTS[(seed + i) % DOM_EXTS.length];  // dominant / other
+        }
+        return rootNote + ext;
+      });
+
+      // Dynamic Strumming Pattern
       const patterns = [
-        "D - D U - U D U",
-        "D - - U D - U D",
-        "D U D U D U D U",
-        "D - D U D - D U",
-        "D U - U D - D U"
+        'D - D U - U D U',
+        'D - - U D - U D',
+        'D U D U D U D U',
+        'D - D U D - D U',
+        'D U - U D - D U'
       ];
       const strummingPattern = patterns[seed % patterns.length];
 
-      // Dynamic Capo Calculation (Example: if key is Bb, recommend Capo 3 in G)
       const capoMap = { 'Bb': 'Capo 3rd Fret (G Shape)', 'F': 'Capo 1st Fret (E Shape)', 'Eb': 'Capo 1st Fret (Db Shape)' };
       const recommendedCapo = capoMap[selectedKey] || 'No Capo required';
 
       return {
         title: title,
-        artist: "Procedurally Analyzed Track",
+        artist: knownArtist || 'Procedurally Analyzed Track',
         key: fullKeyName,
         composerChords: composerChords,
         beginnerChords: beginnerChords,
         recommendedCapo: recommendedCapo,
         strummingPattern: strummingPattern,
         sections: [
-          {
-            name: "Intro",
-            tab: buildTabFromChords([beginnerChords[0]], 'arpeggio')
-          },
-          {
-            name: "Verse",
-            tab: buildTabFromChords([beginnerChords[0], beginnerChords[1]], 'strum')
-          },
-          {
-            name: "Chorus",
-            tab: buildTabFromChords([beginnerChords[2], beginnerChords[3] || beginnerChords[0]], 'strum')
-          },
-          {
-            name: "Outro",
-            tab: buildTabFromChords([beginnerChords[3] || beginnerChords[0], beginnerChords[0]], 'arpeggio')
-          }
+          { name: 'Intro',  tab: buildTabFromChords([beginnerChords[0]], 'arpeggio') },
+          { name: 'Verse',  tab: buildTabFromChords([beginnerChords[0], beginnerChords[1]], 'strum') },
+          { name: 'Chorus', tab: buildTabFromChords([beginnerChords[2], beginnerChords[3] || beginnerChords[0]], 'strum') },
+          { name: 'Outro',  tab: buildTabFromChords([beginnerChords[3] || beginnerChords[0], beginnerChords[0]], 'arpeggio') }
         ]
       };
     }
@@ -905,43 +937,59 @@
     }
 
     // ─── Chord-Diagram Tab Builder ────────────────────────────────────────────────
-    // Converts an array of chord names into a proper 6-string ASCII tablature string.
-    // CHORD_DIAGRAMS order:  [E_low, A, D, G, B, e_high] (index 0 = thickest string)
-    // Tab display order:     e B G D A E  (top-to-bottom: high e at top)
+    // Builds a proper 6-string ASCII tab from chord names.
+    //
+    // CHORD_DIAGRAMS index: [E_low(0), A(1), D(2), G(3), B(4), e_high(5)]
+    // Tab display order (top → bottom): e  B  G  D  A  E
+    // Tab display index:                  0  1  2  3  4  5
+    // Mapping: tabIdx → diagIdx = (5 - tabIdx)
     function buildTabFromChords(chordNames, style) {
-      const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E']; // tab rows, high→low
+      const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E']; // high → low (tab display)
 
-      // Resolve diagram for each chord (display-order: [e,B,G,D,A,E])
+      // Convert each chord to display-order fret array [e, B, G, D, A, E]
       const diagrams = chordNames.map(name => {
         const raw = CHORD_DIAGRAMS[name] || calculateChordVoicing(name) || ['x', 0, 2, 2, 1, 0];
-        // raw = [E,A,D,G,B,e] → reverse to get [e,B,G,D,A,E]
         return [raw[5], raw[4], raw[3], raw[2], raw[1], raw[0]];
       });
 
-      function fStr(fret) { return fret === 'x' ? 'x' : String(fret); }
+      // Pad fret number so it always occupies consistent width
+      function fStr(fret, w) {
+        const s = fret === 'x' ? 'x' : String(fret);
+        return s.padStart(w, '-').padEnd(w + 1, '-');
+      }
 
       if (style === 'arpeggio') {
-        // Each chord arpeggiated from low E to high e, then repeated
+        // Low-to-high arpeggio: E string sounds first (leftmost), e string last (rightmost)
+        // tabIdx 5 (E) → position 0  (earliest)
+        // tabIdx 0 (e) → position 5  (latest)
+        // For each chord block: notes staggered in low-to-high order across 14 chars
+        // Position of note on string si = (5 - si) * 2  (chars from block start)
+        const BLOCK = 14; // chars per chord
         return STRING_NAMES.map((strName, si) => {
+          // si=0→e (plays last, pos 10), si=5→E (plays first, pos 0)
+          const notePos  = (5 - si) * 2;        // offset within block where the note lands
+          const padAfter = BLOCK - notePos - 1;  // dashes after the note
           let line = `${strName}|`;
           diagrams.forEach(diag => {
-            const f = fStr(diag[si]);
-            // Stagger note timing by string position (si 0=e is last to ring)
-            const pre  = '--'.repeat(5 - si);
-            const post = '--'.repeat(si + 1);
-            line += `${pre}${f}${post}`;
+            const f = diag[si];
+            const s = f === 'x' ? 'x' : String(f);
+            line += '-'.repeat(notePos) + s + '-'.repeat(padAfter);
           });
           line += '|';
           return line;
         }).join('\n');
+
       } else {
-        // Strum: all strings sound together in rhythmic groups
+        // Strum style: each chord change occupies one rhythmic cell.
+        // Within the cell notes appear together (strum block), separated from next chord.
+        // Format:  |-fret---fret---  (downstroke, pause, downstroke)
         return STRING_NAMES.map((strName, si) => {
           let line = `${strName}|`;
-          diagrams.forEach(diag => {
-            const f = fStr(diag[si]);
-            // Two strums per chord block
-            line += `-${f}---${f}--`;
+          diagrams.forEach((diag, ci) => {
+            const f = diag[si];
+            const s = f === 'x' ? 'x' : String(f);
+            // Each chord: two rhythmic downstrokes, dash-separated, with chord separation
+            line += `-${s}---${s}----`;
           });
           line += '|';
           return line;
