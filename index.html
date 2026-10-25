@@ -597,7 +597,7 @@
 
     // Call Gemini API (gemini-2.5-flash)
     async function fetchGeminiTab(title, apiKey) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       // Handle multimodal audio input if available
       let audioData = null;
@@ -639,7 +639,9 @@
             "tab": "e|---0---0---1---|\\nB|---1---1---1---|\\nG|---0---2---2---|\\nD|---2---2---3---|\\nA|---3---0---3---|\\nE|-----------1---|"
           }
         ]
-      }`;
+      }
+
+      CRITICAL: Ensure the "tab" fields contain actual fret numbers (e.g., 0, 1, 2, 3, 4, 5, 7) and a proper ASCII 6-string guitar layout. Do NOT return tabs filled only with zeros.`;
 
       const parts = [{ text: promptText }];
       if (audioData) {
