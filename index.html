@@ -427,7 +427,11 @@
 
       // Modal events
       document.getElementById('btn-settings').onclick = () => document.getElementById('settings-modal').classList.remove('hidden');
-      document.getElementById('btn-example').onclick = loadExample;
+
+      const btnExample = document.getElementById('btn-example');
+      if (btnExample) {
+        btnExample.onclick = loadExample;
+      }
 
       // Add listeners for input validation
       document.getElementById('meta-song').addEventListener('input', validateInputs);
