@@ -100,7 +100,12 @@
           <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
             <i class="fa-solid fa-sliders text-pink-500"></i> Song Source
           </h2>
-          <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700/50">Step 1</span>
+          <div class="flex items-center gap-2">
+            <button id="btn-example" type="button" class="text-xs bg-slate-800 hover:bg-brand-500 hover:text-slate-950 text-slate-400 hover:text-white px-2.5 py-1 rounded-full border border-slate-700/50 transition font-medium flex items-center gap-1.5">
+              <i class="fa-solid fa-bolt-lightning text-yellow-400"></i> Load Example
+            </button>
+            <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700/50">Step 1</span>
+          </div>
         </div>
 
         <!-- Input Source Tabs -->
@@ -605,7 +610,7 @@
 
     // Call Gemini API (gemini-2.5-flash)
     async function fetchGeminiTab(title, apiKey) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
       // Handle multimodal audio input if available
       let audioData = null;
@@ -725,10 +730,14 @@
       const scaleInfo = SCALES[scaleType];
       const rootIdx = CHROMATIC_SCALE.indexOf(selectedKey);
 
+      // FIX (Bug 3): Map chord types to standard notation suffixes
+      // 'maj' → '' (e.g. "C"), 'min' → 'm' (e.g. "Am"), 'dim' → 'dim' (e.g. "Bdim")
+      const TYPE_SUFFIX_MAP = { 'maj': '', 'min': 'm', 'dim': 'dim', 'dom7': '7', 'maj7': 'maj7', 'min7': 'm7' };
+
       const getChordForDegree = (degree) => {
         const rootNote = CHROMATIC_SCALE[(rootIdx + scaleInfo.intervals[degree]) % 12];
         const type = scaleInfo.chords[degree];
-        return rootNote + type;
+        return rootNote + (TYPE_SUFFIX_MAP[type] ?? type);
       };
 
       // Create a musically sound progression: I - IV - V - I (major) or i - iv - V - i (minor)
@@ -737,14 +746,11 @@
         const chord = getChordForDegree(d);
         // Add occasional extensions for "Composer" feel
         const extensions = ['maj7', 'add9', 'sus4', '7'];
-        return (seed % 5 === 0) ? chord.replace('maj', extensions[seed % 4]) : chord;
+        return (seed % 5 === 0) ? chord + extensions[seed % 4] : chord;
       });
 
-      const beginnerChords = progressionDegrees.map(d => {
-        // Simplify to basic triads
-        const chord = getChordForDegree(d);
-        return chord.replace(/maj7|add9|sus4|7/, (match) => match === 'min' ? 'min' : '');
-      });
+      // FIX (Bug 5): Beginner chords are just the plain triads — no need for regex stripping
+      const beginnerChords = progressionDegrees.map(d => getChordForDegree(d));
 
       // Dynamic Strumming Pattern based on seed
       const patterns = [
@@ -899,9 +905,8 @@
     function renderFretboard(chordName) {
       document.getElementById('active-chord-label').innerText = chordName;
 
-      // Use Dynamic Calculator first, fallback to static diagrams, then to Am
-      const dynamicVoicing = calculateChordVoicing(chordName);
-      const diagram = dynamicVoicing || CHORD_DIAGRAMS[chordName] || ['x', 0, 2, 2, 1, 0];
+      // FIX (Bug 4): Prefer known accurate diagrams first; fall back to calculated voicing
+      const diagram = CHORD_DIAGRAMS[chordName] || calculateChordVoicing(chordName) || ['x', 0, 2, 2, 1, 0];
 
       const strings = ['E', 'A', 'D', 'G', 'B', 'e'];
       const fretContainer = document.getElementById('fretboard');
@@ -915,12 +920,19 @@
           let content = '&nbsp;';
           let style = 'text-slate-600 border-r border-slate-800/80 px-2 text-center flex-1';
 
-          if (pos === fret) {
-            content = '●';
-            style = 'text-brand-500 font-bold border-r border-slate-800/80 px-2 text-center flex-1';
-          } else if (fret === 0 && pos === 'x') {
+          // FIX (Bug 6): Distinguish open strings (O), muted strings (×), and fretted notes (●)
+          if (fret === 0 && pos === 'x') {
+            // Muted string — shown in the nut column
             content = '×';
             style = 'text-red-400 border-r border-slate-800/80 px-2 text-center flex-1';
+          } else if (fret === 0 && pos === 0) {
+            // Open string — shown in the nut column
+            content = 'O';
+            style = 'text-emerald-400 font-bold border-r border-slate-800/80 px-2 text-center flex-1';
+          } else if (fret > 0 && pos === fret) {
+            // Fretted note — finger placement
+            content = '●';
+            style = 'text-brand-500 font-bold border-r border-slate-800/80 px-2 text-center flex-1';
           }
 
           row += `<span class="${style}">${content}</span>`;
